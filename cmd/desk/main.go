@@ -7,8 +7,6 @@ package main
 import (
 	"syscall/js"
 
-	winbox "github.com/0magnet/winbox-go"
-
 	"github.com/0magnet/desk"
 	"github.com/0magnet/desk/panes/files"
 	"github.com/0magnet/desk/panes/term"
@@ -30,8 +28,8 @@ func main() {
 		Name:   "term",
 		Title:  "terminal",
 		Help:   "a shell",
-		Width:  winbox.Px(760),
-		Height: winbox.Px(460),
+		Width:  760,
+		Height: 460,
 		Open: func([]string) (desk.Pane, error) {
 			return term.New(greeting, "desk"), nil
 		},
@@ -40,8 +38,8 @@ func main() {
 		Name:   "files",
 		Title:  "files",
 		Help:   "browse the filesystem",
-		Width:  winbox.Px(560),
-		Height: winbox.Px(420),
+		Width:  560,
+		Height: 420,
 		Open: func(args []string) (desk.Pane, error) {
 			dir := ""
 			if len(args) > 0 {

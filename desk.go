@@ -51,8 +51,10 @@ type App struct {
 	Icon  string // optional icon URL
 	Help  string // one line, for a launcher
 
-	// Width and Height are the initial window size. Zero picks a default.
-	Width, Height winbox.Unit
+	// Width and Height are the preferred window size in pixels. Zero picks a
+	// default. Both are capped at what the desk can actually show, so this is
+	// what the app would like rather than what it will get.
+	Width, Height float64
 
 	// Open builds a pane. args are whatever Launch was given, so an app can
 	// take a filename or a mode without the desk knowing what either means.
@@ -102,11 +104,12 @@ func Lookup(name string) (App, bool) {
 	return a, ok
 }
 
-// Options adjust a single launch.
+// Options adjust a single launch. Sizes and positions are pixels; zero means
+// "use the app's preference", and for X and Y "place it automatically".
 type Options struct {
 	Title         string // overrides the app's title
-	Width, Height winbox.Unit
-	X, Y          winbox.Unit
+	Width, Height float64
+	X, Y          float64
 }
 
 // Launch opens a window holding a new pane of the named app.
@@ -130,22 +133,38 @@ func LaunchOpts(name string, opt Options, args ...string) (*winbox.WinBox, error
 		title = opt.Title
 	}
 	w, h := app.Width, app.Height
-	if opt.Width != (winbox.Unit{}) {
+	if opt.Width > 0 {
 		w = opt.Width
 	}
-	if opt.Height != (winbox.Unit{}) {
+	if opt.Height > 0 {
 		h = opt.Height
 	}
-	if w == (winbox.Unit{}) {
-		w = winbox.Px(720)
+	if w <= 0 {
+		w = 720
 	}
-	if h == (winbox.Unit{}) {
-		h = winbox.Px(460)
+	if h <= 0 {
+		h = 460
 	}
 
 	mu.Lock()
 	r := root
 	mu.Unlock()
+
+	// An app asks for the size it would like, not the size it can have. On a
+	// phone the desk is narrower than any sensible default, and a window
+	// opened at its preferred width would hang off the right edge with its
+	// own controls out of reach.
+	//
+	// Where it goes has to be settled first: a window is clamped to the room
+	// left after its offset, not to the whole desk, or a cascaded window
+	// overflows by exactly the amount it was staggered.
+	availW, availH := deskSize(r)
+	x, y := opt.X, opt.Y
+	if x <= 0 && y <= 0 {
+		x, y = cascade(availW, availH)
+	}
+	w = clamp(w, availW-x-8)
+	h = clamp(h, availH-y-PanelHeight-8)
 
 	// Keep windows clear of the panel, so a window dragged to the bottom does
 	// not end up with its own controls underneath the task buttons.
@@ -159,16 +178,12 @@ func LaunchOpts(name string, opt Options, args ...string) (*winbox.WinBox, error
 		Bottom: bottom,
 		Title:  title,
 		Icon:   app.Icon,
-		Width:  w,
-		Height: h,
-		X:      opt.X,
-		Y:      opt.Y,
+		Width:  winbox.Px(w),
+		Height: winbox.Px(h),
 		// The pane owns the body's contents; nothing here should scroll it.
 		Background: "#1b1f27",
 	}
-	if opt.X == (winbox.Unit{}) && opt.Y == (winbox.Unit{}) {
-		o.X, o.Y = cascade()
-	}
+	o.X, o.Y = winbox.Px(x), winbox.Px(y)
 
 	win := winbox.New(o)
 
@@ -225,13 +240,43 @@ func LaunchOpts(name string, opt Options, args ...string) (*winbox.WinBox, error
 	return win, nil
 }
 
+// deskSize is how much room windows have, in pixels.
+func deskSize(r js.Value) (float64, float64) {
+	el := r
+	if !el.Truthy() {
+		el = js.Global().Get("document").Get("body")
+	}
+	rect := el.Call("getBoundingClientRect")
+	w, h := rect.Get("width").Float(), rect.Get("height").Float()
+	if w <= 0 || h <= 0 {
+		return 1024, 700 // nothing has been laid out yet; guess generously
+	}
+	return w, h
+}
+
+// clamp caps a size at what is available, with a floor so a window is never
+// shrunk to something unusable on a very small screen — better to overflow a
+// little than to be a sliver.
+func clamp(v, max float64) float64 {
+	if max < 220 {
+		max = 220
+	}
+	if v > max {
+		return max
+	}
+	return v
+}
+
 // cascade staggers new windows so a second one does not land exactly on the
-// first. It is the whole of the desk's window-placement policy.
+// first, and gives up staggering when there is no room to stagger into.
 var cascadeN int
 
-func cascade() (winbox.Unit, winbox.Unit) {
+func cascade(availW, availH float64) (float64, float64) {
+	if availW < 700 || availH < 520 {
+		return 8, 8 // no room to stagger into
+	}
 	const step = 28
 	n := cascadeN % 8
 	cascadeN++
-	return winbox.Px(float64(60 + n*step)), winbox.Px(float64(50 + n*step))
+	return float64(60 + n*step), float64(50 + n*step)
 }
