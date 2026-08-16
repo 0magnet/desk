@@ -235,6 +235,19 @@ func launchFromMenu(name string) {
 	}
 }
 
+// SetActive marks which window the task buttons should show as focused. Only
+// one is active at a time, so this clears the others rather than trusting every
+// window to report its own blur.
+func (p *Panel) SetActive(w *Window) {
+	for _, t := range p.items {
+		cls := "dk-task"
+		if t.win == w {
+			cls += " active"
+		}
+		t.el.Set("className", cls)
+	}
+}
+
 // Track adds a window to the task list.
 func (p *Panel) Track(w *Window) {
 	el := dom.El("div", dom.Class("dk-task"), dom.Text(w.Title),

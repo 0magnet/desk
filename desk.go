@@ -187,18 +187,29 @@ func LaunchOpts(name string, opt Options, args ...string) (*winbox.WinBox, error
 	}
 	if panel != nil {
 		alive := true
-		panel.Track(&Window{
+		tracked := &Window{
 			Title: title,
 			Focus: func() { win.Restore().Focus() },
 			Alive: func() bool { return alive },
-		})
-		defer func() { _ = alive }()
+		}
+		panel.Track(tracked)
+		panel.SetActive(tracked) // a window opens focused
+
+		prevFocus := win.OnFocus
+		win.OnFocus = func(wb *winbox.WinBox) {
+			if prevFocus != nil {
+				prevFocus(wb)
+			}
+			panel.SetActive(tracked)
+		}
+
 		prev := win.OnClose
 		win.OnClose = func(wb *winbox.WinBox, force bool) bool {
 			if prev != nil && prev(wb, force) {
 				return true
 			}
 			alive = false
+			panel.SetActive(nil)
 			return false
 		}
 	}
