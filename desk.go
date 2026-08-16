@@ -158,24 +158,34 @@ func LaunchOpts(name string, opt Options, args ...string) (*winbox.WinBox, error
 	// Where it goes has to be settled first: a window is clamped to the room
 	// left after its offset, not to the whole desk, or a cascaded window
 	// overflows by exactly the amount it was staggered.
-	availW, availH := deskSize(r)
+	// Windows are position:fixed, so their coordinates are the viewport's and
+	// not the root element's — appending into the root sets parentage, not
+	// where the window lands. The root's offset therefore has to be added
+	// here, and declared to winbox as a viewport limit so a window cannot be
+	// dragged out over the page's own furniture.
+	dk := deskRect(r)
 	x, y := opt.X, opt.Y
 	if x <= 0 && y <= 0 {
-		x, y = cascade(availW, availH)
+		x, y = cascade(dk.w, dk.h)
 	}
-	w = clamp(w, availW-x-8)
-	h = clamp(h, availH-y-PanelHeight-8)
+	w = clamp(w, dk.w-x-8)
+	h = clamp(h, dk.h-y-PanelHeight-8)
+	x += dk.left
+	y += dk.top
 
-	// Keep windows clear of the panel, so a window dragged to the bottom does
-	// not end up with its own controls underneath the task buttons.
-	var bottom winbox.Unit
+	// Keep windows inside the desk, and clear of the panel so one dragged to
+	// the bottom does not end up with its controls under the task buttons.
+	bottomLimit := dk.bottom
 	if panel != nil {
-		bottom = winbox.Px(PanelHeight)
+		bottomLimit += PanelHeight
 	}
 
 	o := &winbox.Options{
 		Root:   r,
-		Bottom: bottom,
+		Top:    winbox.Px(dk.top),
+		Left:   winbox.Px(dk.left),
+		Right:  winbox.Px(dk.right),
+		Bottom: winbox.Px(bottomLimit),
 		Title:  title,
 		Icon:   app.Icon,
 		Width:  winbox.Px(w),
@@ -240,8 +250,18 @@ func LaunchOpts(name string, opt Options, args ...string) (*winbox.WinBox, error
 	return win, nil
 }
 
-// deskSize is how much room windows have, in pixels.
-func deskSize(r js.Value) (float64, float64) {
+// deskBox is where the desk sits in the viewport, and how much of the viewport
+// is not it.
+type deskBox struct {
+	left, top     float64 // the desk's own offset
+	right, bottom float64 // what is left of the viewport past its far edges
+	w, h          float64
+}
+
+// deskRect measures the desk. Everything about window placement is expressed
+// against the viewport, so a desk that is not the whole page has to say by how
+// much.
+func deskRect(r js.Value) deskBox {
 	el := r
 	if !el.Truthy() {
 		el = js.Global().Get("document").Get("body")
@@ -249,9 +269,18 @@ func deskSize(r js.Value) (float64, float64) {
 	rect := el.Call("getBoundingClientRect")
 	w, h := rect.Get("width").Float(), rect.Get("height").Float()
 	if w <= 0 || h <= 0 {
-		return 1024, 700 // nothing has been laid out yet; guess generously
+		return deskBox{w: 1024, h: 700} // nothing laid out yet; guess generously
 	}
-	return w, h
+	win := js.Global()
+	vw, vh := win.Get("innerWidth").Float(), win.Get("innerHeight").Float()
+	return deskBox{
+		left:   rect.Get("left").Float(),
+		top:    rect.Get("top").Float(),
+		right:  vw - rect.Get("right").Float(),
+		bottom: vh - rect.Get("bottom").Float(),
+		w:      w,
+		h:      h,
+	}
 }
 
 // clamp caps a size at what is available, with a floor so a window is never
