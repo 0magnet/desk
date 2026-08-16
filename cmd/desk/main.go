@@ -25,11 +25,12 @@ func main() {
 	}
 
 	desk.Register(desk.App{
-		Name:   "term",
-		Title:  "terminal",
-		Help:   "a shell",
-		Width:  760,
-		Height: 460,
+		Name:      "term",
+		Maximized: true,
+		Title:     "terminal",
+		Help:      "a shell",
+		Width:     760,
+		Height:    460,
 		Open: func([]string) (desk.Pane, error) {
 			return term.New(greeting, "desk"), nil
 		},

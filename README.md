@@ -35,6 +35,9 @@ type Pane interface {
 }
 ```
 
+An app that a page opens with should set `Maximized`, so the desktop starts
+with something filling it rather than a small window adrift in empty space.
+
 `Resizer` is optional and most panes do not want it — one laid out with CSS is
 resized by the browser, and one that watches its own element hears about it from
 a `ResizeObserver`. The terminal pane does not implement it.

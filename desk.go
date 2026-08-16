@@ -56,6 +56,11 @@ type App struct {
 	// what the app would like rather than what it will get.
 	Width, Height float64
 
+	// Maximized opens the window filling the desk. Worth setting for whatever
+	// a page opens with: a small window adrift in a large empty desktop reads
+	// as something that failed to size itself, not as a window manager.
+	Maximized bool
+
 	// Open builds a pane. args are whatever Launch was given, so an app can
 	// take a filename or a mode without the desk knowing what either means.
 	Open func(args []string) (Pane, error)
@@ -110,6 +115,9 @@ type Options struct {
 	Title         string // overrides the app's title
 	Width, Height float64
 	X, Y          float64
+
+	// Maximized overrides the app's own setting when true.
+	Maximized bool
 }
 
 // Launch opens a window holding a new pane of the named app.
@@ -181,7 +189,10 @@ func LaunchOpts(name string, opt Options, args ...string) (*winbox.WinBox, error
 	}
 
 	o := &winbox.Options{
-		Root:   r,
+		Root: r,
+		// Maximizing respects the viewport limits below, so it fills the desk
+		// rather than the page.
+		Max:    app.Maximized || opt.Maximized,
 		Top:    winbox.Px(dk.top),
 		Left:   winbox.Px(dk.left),
 		Right:  winbox.Px(dk.right),
