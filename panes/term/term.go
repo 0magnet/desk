@@ -40,6 +40,7 @@ func FS() afero.Fs {
 type Pane struct {
 	greeting string
 	host     string
+	run      []string
 	session  *web.Session
 }
 
@@ -50,6 +51,16 @@ func New(greeting, host string) *Pane {
 	}
 	return &Pane{greeting: greeting, host: host}
 }
+
+// Run queues command lines to be submitted once the shell is up, as though
+// they had been typed. It is what lets a link carry a command into the page.
+func (p *Pane) Run(lines ...string) *Pane {
+	p.run = append(p.run, lines...)
+	return p
+}
+
+// Session is the shell running in this pane, or nil before it is mounted.
+func (p *Pane) Session() *web.Session { return p.session }
 
 // Mount starts a shell on el.
 func (p *Pane) Mount(el js.Value) error {
@@ -62,6 +73,9 @@ func (p *Pane) Mount(el js.Value) error {
 		return err
 	}
 	p.session = s
+	for _, line := range p.run {
+		s.Submit(line)
+	}
 	return nil
 }
 
