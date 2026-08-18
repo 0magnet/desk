@@ -8,7 +8,6 @@
 package main
 
 import (
-	"flag"
 	"fmt"
 	"log"
 	"mime"
@@ -19,39 +18,81 @@ import (
 	"strings"
 	"time"
 
+	"github.com/0magnet/calvin"
 	"github.com/0magnet/desk"
+	cc "github.com/ivanpirog/coloredcobra"
+	"github.com/spf13/cobra"
 )
 
+var (
+	addr string
+	open bool
+)
+
+func init() {
+	RootCmd.Flags().StringVarP(&addr, "addr", "a", "127.0.0.1:8080", "address to listen on")
+	RootCmd.Flags().BoolVarP(&open, "open", "o", true, "open a browser at the served page")
+	var helpflag bool
+	RootCmd.SetUsageTemplate(help)
+	RootCmd.PersistentFlags().BoolVarP(&helpflag, "help", "h", false, "help for "+RootCmd.Use)
+	RootCmd.SetHelpCommand(&cobra.Command{Hidden: true})
+	RootCmd.PersistentFlags().MarkHidden("help") //nolint
+}
+
+// RootCmd is the root command
+var RootCmd = &cobra.Command{
+	Use:                   "desk-serve",
+	Short:                 "serve the desk web view",
+	Long:                  calvin.AsciiFont("desk-serve") + "\nserve the desk web view",
+	SilenceErrors:         true,
+	SilenceUsage:          true,
+	DisableSuggestions:    true,
+	DisableFlagsInUseLine: true,
+	Run: func(_ *cobra.Command, _ []string) {
+		// Some systems have a registry entry mapping .wasm to something else, and
+		// a wrong Content-Type makes instantiateStreaming refuse the module with
+		// an error that says nothing about MIME types.
+		if err := mime.AddExtensionType(".wasm", "application/wasm"); err != nil {
+			log.Printf("desk: could not register the wasm MIME type: %v", err)
+		}
+
+		ln, err := net.Listen("tcp", addr)
+		if err != nil {
+			log.Fatalf("desk: %v", err)
+		}
+		url := "http://" + ln.Addr().String() + "/"
+		if strings.HasPrefix(ln.Addr().String(), "[::]") || strings.HasPrefix(addr, ":") {
+			url = fmt.Sprintf("http://localhost:%d/", ln.Addr().(*net.TCPAddr).Port)
+		}
+
+		mux := http.NewServeMux()
+		mux.Handle("/", noCache(http.FileServerFS(desk.Assets())))
+
+		fmt.Printf("desk: serving on %s\n", url)
+		if open {
+			go browse(url)
+		}
+		srv := &http.Server{Handler: mux, ReadHeaderTimeout: 10 * time.Second}
+		log.Fatal(srv.Serve(ln))
+	},
+}
+
 func main() {
-	addr := flag.String("addr", "127.0.0.1:8080", "address to listen on")
-	open := flag.Bool("open", true, "open a browser at the served page")
-	flag.Parse()
-
-	// Some systems have a registry entry mapping .wasm to something else, and
-	// a wrong Content-Type makes instantiateStreaming refuse the module with
-	// an error that says nothing about MIME types.
-	if err := mime.AddExtensionType(".wasm", "application/wasm"); err != nil {
-		log.Printf("desk: could not register the wasm MIME type: %v", err)
+	cc.Init(&cc.Config{
+		RootCmd:         RootCmd,
+		Headings:        cc.HiBlue + cc.Bold,
+		Commands:        cc.HiBlue + cc.Bold,
+		CmdShortDescr:   cc.HiBlue,
+		Example:         cc.HiBlue + cc.Italic,
+		ExecName:        cc.HiBlue + cc.Bold,
+		Flags:           cc.HiBlue + cc.Bold,
+		FlagsDescr:      cc.HiBlue,
+		NoExtraNewlines: true,
+		NoBottomNewline: true,
+	})
+	if err := RootCmd.Execute(); err != nil {
+		log.Fatal("Failed to execute command: ", err)
 	}
-
-	ln, err := net.Listen("tcp", *addr)
-	if err != nil {
-		log.Fatalf("desk: %v", err)
-	}
-	url := "http://" + ln.Addr().String() + "/"
-	if strings.HasPrefix(ln.Addr().String(), "[::]") || strings.HasPrefix(*addr, ":") {
-		url = fmt.Sprintf("http://localhost:%d/", ln.Addr().(*net.TCPAddr).Port)
-	}
-
-	mux := http.NewServeMux()
-	mux.Handle("/", noCache(http.FileServerFS(desk.Assets())))
-
-	fmt.Printf("desk: serving on %s\n", url)
-	if *open {
-		go browse(url)
-	}
-	srv := &http.Server{Handler: mux, ReadHeaderTimeout: 10 * time.Second}
-	log.Fatal(srv.Serve(ln))
 }
 
 // noCache keeps a rebuilt wasm from being served out of the browser cache,
@@ -79,3 +120,12 @@ func browse(url string) {
 		log.Printf("desk: could not open a browser (%v); visit %s", err, url)
 	}
 }
+
+const help = "{{if .HasAvailableSubCommands}}{{end}} {{if gt (len .Aliases) 0}}\r\n\r\n" +
+	"{{.NameAndAliases}}{{end}}{{if .HasAvailableSubCommands}}" +
+	"Available Commands:{{range .Commands}}  {{if and (ne .Name \"completion\") .IsAvailableCommand}}\r\n  " +
+	"{{rpad .Name .NamePadding }} {{.Short}}{{end}}{{end}}{{end}}{{if .HasAvailableLocalFlags}}\r\n\r\n" +
+	"Flags:\r\n" +
+	"{{.LocalFlags.FlagUsages | trimTrailingWhitespaces}}{{end}}{{if .HasAvailableInheritedFlags}}\r\n\r\n" +
+	"Global Flags:\r\n" +
+	"{{.InheritedFlags.FlagUsages | trimTrailingWhitespaces}}{{end}}\r\n\r\n"
