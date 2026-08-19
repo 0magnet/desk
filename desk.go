@@ -74,7 +74,7 @@ var (
 
 // SetRoot confines windows to an element. Without it winbox places them
 // against the body, which is wrong the moment the page has a header: windows
-// can be dragged up underneath it and their maximised size is a header too
+// can be dragged up underneath it and their maximized size is a header too
 // tall.
 func SetRoot(el js.Value) {
 	mu.Lock()
