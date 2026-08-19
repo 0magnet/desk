@@ -14,7 +14,7 @@ import (
 // and nothing to fetch: `desk serve` works on a machine with no network and no
 // checkout. The cost is that the binary carries the wasm, and that the build
 // has to have been run before this package compiles — which is why docs/ holds
-// a committed build rather than being a build artefact.
+// a committed build rather than being a build artifact.
 //
 //go:embed docs
 var assets embed.FS
