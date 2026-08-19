@@ -4,7 +4,7 @@ go 1.26
 
 require (
 	github.com/0magnet/afero v1.15.1-0.20260816202415-9f9d46a34dcd
-	github.com/0magnet/calvin v0.0.0-20260818215653-029fc7e73f2c
+	github.com/0magnet/calvin v0.0.0-20260818215653-c62af7624521
 	github.com/0magnet/sh/v3 v3.13.2-0.20260818190530-13d0024da85c
 	github.com/0magnet/websh v0.0.0-20260818190700-3c413dff1867
 	github.com/0magnet/winbox-go v0.0.0-20260817001000-977b90918c97

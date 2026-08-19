@@ -1,7 +1,7 @@
 github.com/0magnet/afero v1.15.1-0.20260816202415-9f9d46a34dcd h1:zhADHH+Lu7o4U14ATjhRP9m1hhJ2BBuCtQLUmVmYg2g=
 github.com/0magnet/afero v1.15.1-0.20260816202415-9f9d46a34dcd/go.mod h1:JsJ3c6VwVpJOB3qUpT6YzgJ8yC+nBLUCcH2nhGLC6fA=
-github.com/0magnet/calvin v0.0.0-20260818215653-029fc7e73f2c h1:CVBNubahois6bw8E8Ik2bePndPao6bVzD2zrnph5dgo=
-github.com/0magnet/calvin v0.0.0-20260818215653-029fc7e73f2c/go.mod h1:fubavjMSpnhcwu2Fct+YhkVGKz6PD0/NyH6l8GXxTb0=
+github.com/0magnet/calvin v0.0.0-20260818215653-c62af7624521 h1:nkFtBldJo7vM4mXJIKmneVrpOjTSt9LELwxcPHBtKBU=
+github.com/0magnet/calvin v0.0.0-20260818215653-c62af7624521/go.mod h1:fubavjMSpnhcwu2Fct+YhkVGKz6PD0/NyH6l8GXxTb0=
 github.com/0magnet/sh/v3 v3.13.2-0.20260818190530-13d0024da85c h1:qKcMe7/qRLFPbk/HWEYy5QuYY+luINKnlen9BhDPRZU=
 github.com/0magnet/sh/v3 v3.13.2-0.20260818190530-13d0024da85c/go.mod h1:IdyC3iqIKArn4KOl0a58dV2spH0PH6pLJKOZYB2kFR0=
 github.com/0magnet/u-root v0.16.1-0.20260814161052-156e0b67262b h1:1p4E2ok/rmNJU2LsGx6iMl0bIAMgl1QOC2H8doC+9ww=
