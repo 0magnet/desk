@@ -118,3 +118,37 @@ window body  500x285  ->  terminal canvas  477x280
 No workspaces, no session management, no multi-monitor, no file operations
 beyond browsing. The panel and the menu are what make a collection of windows
 read as a desktop; the rest is refinement on top of those two.
+## Dependency Graph
+
+Made with [goda](https://github.com/loov/goda):
+
+```
+# GOOS=js: the import edges of a wasm program live in js/wasm-tagged
+# files and are invisible to a host-context run
+GOOS=js GOARCH=wasm go run github.com/loov/goda@latest graph github.com/0magnet/desk/... | dot -Tsvg -o docs/desk-goda-graph.svg
+```
+
+![Dependency Graph](docs/desk-goda-graph.svg "github.com/0magnet/desk Dependency Graph")
+
+## Lines of Code
+
+Made with [gocloc](https://github.com/hhatto/gocloc) (excludes `vendor/`, `node_modules/`, `.git/`):
+
+```
+gocloc --not-match-d='(vendor|node_modules|\.git)' .
+```
+
+```
+-------------------------------------------------------------------------------
+Language                     files          blank        comment           code
+-------------------------------------------------------------------------------
+Go                              11            182            224           1188
+JavaScript                       2            117             82            935
+HTML                             2              0              0             92
+Markdown                         1             29              0             91
+JSON                             2              0              0             28
+Bourne Shell                     1              5             13             20
+-------------------------------------------------------------------------------
+TOTAL                           19            333            319           2354
+-------------------------------------------------------------------------------
+```
