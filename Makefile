@@ -26,13 +26,34 @@ format: tidy ## Format the code. Needs goimports (make install-linters)
 lint: ## Run golangci-lint. Needs it installed (make install-linters)
 	command -v golangci-lint || go install github.com/golangci/golangci-lint/v2/cmd/golangci-lint@latest
 	golangci-lint --version
-	CGO_ENABLED=0 ${OPTS} golangci-lint run -c .golangci.yml ./...
+	@# Some of these repos are entirely js/wasm-tagged, so the host context has
+	@# nothing in it and linting it is an error rather than a pass.
+	@if [ -n "$$(go list ./... 2>/dev/null)" ]; then \
+		CGO_ENABLED=0 ${OPTS} golangci-lint run -c .golangci.yml ./...; \
+	else \
+		echo '--- nothing builds for this host; skipping the host pass'; \
+	fi
+	@# A host run cannot see js/wasm-tagged files, so anything only they use
+	@# reads as dead — and anything wrong inside them is never checked at all.
+	@if grep -rlq '^//go:build js' --include='*.go' . 2>/dev/null; then \
+		echo '--- again in the js/wasm build context'; \
+		CGO_ENABLED=0 GOOS=js GOARCH=wasm ${OPTS} golangci-lint run -c .golangci.yml ./...; \
+	fi
 
 vet: ## Run go vet
-	CGO_ENABLED=0 ${OPTS} go vet ./...
+	@if [ -n "$$(go list ./... 2>/dev/null)" ]; then \
+		CGO_ENABLED=0 ${OPTS} go vet ./...; \
+	fi
+	@if grep -rlq '^//go:build js' --include='*.go' . 2>/dev/null; then \
+		CGO_ENABLED=0 GOOS=js GOARCH=wasm ${OPTS} go vet ./...; \
+	fi
 
 test: ## Run tests
-	${OPTS} go test ./...
+	@if [ -n "$$(go list ./... 2>/dev/null)" ]; then \
+		${OPTS} go test ./...; \
+	else \
+		echo 'nothing builds for this host; no tests to run'; \
+	fi
 
 check: lint vet test ## Run linters, vet and tests
 
