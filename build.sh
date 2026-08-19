@@ -16,13 +16,15 @@ cd "$(dirname "$0")"
 
 build_tinygo() {
 	mkdir -p docs
-	tinygo build -o docs/desk.wasm -target wasm -no-debug ./cmd/desk
+	# The demo composes the desk with its panes, so it is built from the
+	# panes module; the desk itself does not know they exist.
+	(cd panes && tinygo build -o ../docs/desk.wasm -target wasm -no-debug ./cmd/desk)
 	cp "$(tinygo env TINYGOROOT)/targets/wasm_exec.js" docs/wasm_exec.js
 }
 
 build_go() {
 	mkdir -p docs/go
-	GOOS=js GOARCH=wasm go build -o docs/go/desk.wasm ./cmd/desk
+	(cd panes && GOOS=js GOARCH=wasm go build -o ../docs/go/desk.wasm ./cmd/desk)
 	cp "$(go env GOROOT)/lib/wasm/wasm_exec.js" docs/go/wasm_exec.js
 }
 

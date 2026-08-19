@@ -19,11 +19,13 @@ desk:~$ open files                                or use the menu, bottom left
 desk.go        the registry: apps, windows, mounting, teardown
 panel.go       the panel — Applications menu, task buttons, clock
 dom/           element building without the syscall/js ceremony
-panes/term     a websh shell
-panes/files    a file manager
-panes/viewer   an image and text viewer, plus the `view` command
-cmd/desk       the demo
-cmd/desk-serve a native binary that serves it, assets embedded
+
+panes/                    a second module — see below
+panes/term                a websh shell
+panes/files               a file manager
+panes/viewer              an image and text viewer, plus the `view` command
+panes/cmd/desk            the demo
+panes/cmd/desk-serve      a native binary that serves it, assets embedded
 ```
 
 The shell knows nothing about terminals, images or files. A pane is:
@@ -45,10 +47,29 @@ a `ResizeObserver`. The terminal pane does not implement it.
 That is the point of the arrangement: a project brings its own pane rather than
 waiting for this package to grow support for it.
 
+## Two modules
+
+The desk requires `winbox-go` and nothing else. It is a window manager, a
+panel and a registry, and it does not know that a shell exists.
+
+The panes are a separate module because each is an adapter that knows both
+sides — `panes/term` knows the desk and websh. Putting that in the desk would
+make a window manager require a shell; putting it in websh would make a shell
+require a window manager. It belongs to neither, so it lives in its own module
+next to what it adapts.
+
+The two commands are there too, since both compose rather than provide. What
+that buys: `go get github.com/0magnet/desk` brings winbox-go, and nothing
+else — no shell, no filesystem, no interpreter.
+
+They are developed together and released separately. The `replace` in
+`panes/go.mod` points at `../` and is ignored by anything that depends on the
+module, which is how a nested module is normally arranged.
+
 ## Running it
 
 ```
-go run ./cmd/desk-serve          # serves the built demo, opens a browser
+(cd panes && go run ./cmd/desk-serve)  # serves the built demo, opens a browser
 ./build.sh                       # rebuild both          -> docs/ and docs/go/
 ./build.sh tinygo                # TinyGo only
 ./build.sh go                    # standard Go only
