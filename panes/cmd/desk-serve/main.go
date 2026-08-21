@@ -27,10 +27,12 @@ import (
 )
 
 var (
-	addr  string
-	open  bool
-	shell bool
-	shcmd string
+	addr   string
+	open   bool
+	shell  bool
+	shcmd  string
+	hostFS bool
+	fsRoot string
 )
 
 func init() {
@@ -38,6 +40,8 @@ func init() {
 	RootCmd.Flags().BoolVarP(&open, "open", "o", true, "open a browser at the served page")
 	RootCmd.Flags().BoolVarP(&shell, "shell", "s", false, "let the page run a real shell on this machine")
 	RootCmd.Flags().StringVar(&shcmd, "shell-cmd", "", "what --shell starts (default $SHELL, then /bin/sh)")
+	RootCmd.Flags().BoolVarP(&hostFS, "fs", "f", false, "let the page read and write this machine's files")
+	RootCmd.Flags().StringVar(&fsRoot, "fs-root", "", "confine --fs to this subtree (default: the whole filesystem)")
 	var helpflag bool
 	RootCmd.SetUsageTemplate(help)
 	RootCmd.PersistentFlags().BoolVarP(&helpflag, "help", "h", false, "help for "+RootCmd.Use)
@@ -74,22 +78,23 @@ var RootCmd = &cobra.Command{
 		mux := http.NewServeMux()
 		page := noCache(http.FileServerFS(desk.Assets()))
 
-		if shell {
+		opt := hostOptions{wantShell: shell, wantFS: hostFS, shell: shcmd, fsRoot: fsRoot}
+		if opt.wantShell || opt.wantFS {
 			// Refusing rather than warning. The Origin check makes a
 			// non-loopback listener less bad than it sounds, but "a shell,
 			// reachable from the network, because a flag defaulted" is not a
 			// sentence this should ever be able to produce. Bind loopback.
 			if a, ok := ln.Addr().(*net.TCPAddr); !ok || !a.IP.IsLoopback() {
-				log.Fatalf("desk: --shell needs a loopback address; %s is reachable from elsewhere", ln.Addr())
+				log.Fatalf("desk: host access needs a loopback address; %s is reachable from elsewhere", ln.Addr())
 			}
-			cfg, err := mountHostAgent(mux, ln, shcmd)
+			cfg, err := mountHostAgent(mux, ln, opt)
 			if err != nil {
 				log.Fatalf("desk: %v", err)
 			}
 			if page, err = injectHostConfig(desk.Assets(), page, cfg); err != nil {
 				log.Fatalf("desk: %v", err)
 			}
-			warnAboutTheShell(ln)
+			warnAboutHostAccess(opt)
 		}
 		mux.Handle("/", page)
 

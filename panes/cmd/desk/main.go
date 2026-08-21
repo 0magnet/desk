@@ -7,8 +7,11 @@ package main
 import (
 	"syscall/js"
 
+	"github.com/0magnet/afero"
+
 	"github.com/0magnet/desk"
 	"github.com/0magnet/desk/panes/files"
+	"github.com/0magnet/desk/panes/hostfs"
 	"github.com/0magnet/desk/panes/hostterm"
 	"github.com/0magnet/desk/panes/term"
 	"github.com/0magnet/desk/panes/viewer"
@@ -23,6 +26,24 @@ const greeting = "" +
 func main() {
 	if el := js.Global().Get("document").Call("getElementById", "desktop"); el.Truthy() {
 		desk.SetRoot(el)
+	}
+
+	// THE WHOLE OF WHAT MAKES THIS A DESKTOP WITH SYSTEM ACCESS.
+	//
+	// The shell, the file manager and the viewer all work against an
+	// afero.Fs, so substituting one implementation for another is enough to
+	// make every one of them real at once. websh's interpreter still runs in
+	// the tab; only the files it reads and writes stop being imaginary.
+	//
+	// Nothing below this line knows which filesystem it got.
+	// /bin is kept synthetic. websh's PopulateBin writes a stub for every
+	// applet so `ls /bin` shows the command set, which is right for a
+	// filesystem in a tab and would otherwise mean the first thing this did
+	// with a real home directory is scatter fifty empty files into it.
+	if hf, ok := hostfs.New(); ok {
+		term.SetFS(hostfs.Mount(hf, map[string]afero.Fs{
+			"/bin": afero.NewMemMapFs(),
+		}))
 	}
 
 	desk.Register(desk.App{

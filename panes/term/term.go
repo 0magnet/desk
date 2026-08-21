@@ -36,6 +36,23 @@ func FS() afero.Fs {
 	return sharedFS
 }
 
+// SetFS replaces the shared filesystem, before anything has asked for one.
+//
+// It exists so a desk can be given the HOST's filesystem instead of the
+// in-memory one — the shell, the file manager and the viewer all take an
+// afero.Fs, so substituting it here is the whole of what makes them real.
+//
+// It deliberately does NOT seed. Seeding writes websh's example files, which
+// is right for an empty filesystem in a tab and wrong for somebody's home
+// directory: the first thing this would otherwise do is scatter demo files
+// across a real machine.
+//
+// Calling it after the filesystem is in use does nothing, so the choice is made
+// once, at startup, by whoever composed the desk.
+func SetFS(f afero.Fs) {
+	fsOnce.Do(func() { sharedFS = f })
+}
+
 // Pane is a terminal running a shell.
 type Pane struct {
 	greeting string

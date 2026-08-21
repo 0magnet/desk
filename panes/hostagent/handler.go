@@ -97,6 +97,36 @@ func (c Config) checkToken(r *http.Request) bool {
 	return subtle.ConstantTimeCompare([]byte(got), []byte(c.Token)) == 1
 }
 
+// checkBrowserOrigin is the guard for ordinary HTTP requests, as opposed to the
+// WebSocket handshake.
+//
+// THE ORIGIN HEADER IS NOT ENOUGH HERE, and finding that out cost a confusing
+// 403: a browser does NOT send Origin on a same-origin GET. It is a CORS
+// header, so the request that most needs to be allowed — the page fetching from
+// the very server that served it — arrives with no Origin at all, and a check
+// that requires one refuses exactly the traffic it exists to permit.
+//
+// Sec-Fetch-Site is the header that actually answers the question being asked.
+// The browser sets it on every request and page script cannot change it, so
+// "same-origin" is a statement by the browser that this came from the served
+// page. That makes it a STRONGER guard than Origin, not a weaker fallback.
+//
+// A request without it is not from a modern browser — it is curl, or a test, or
+// something else local. Those fall back to the Origin check, and the token is
+// what stands between them and the filesystem either way.
+func (c Config) checkBrowserOrigin(r *http.Request) error {
+	switch site := r.Header.Get("Sec-Fetch-Site"); site {
+	case "same-origin":
+		return nil
+	case "":
+		return c.checkOrigin(r)
+	default:
+		// cross-site, same-site and none all mean this did not come from the
+		// page the agent served.
+		return fmt.Errorf("hostagent: refusing a %s request", site)
+	}
+}
+
 func (c Config) checkOrigin(r *http.Request) error {
 	origin := r.Header.Get("Origin")
 	for _, ok := range c.Origins {

@@ -25,7 +25,8 @@ import (
 // then the first shell of every session fails once.
 type hostConfig struct {
 	Token string `json:"token"`
-	Path  string `json:"path"`
+	Path  string `json:"path,omitempty"` // the pty endpoint; empty when --shell is off
+	FS    bool   `json:"fs,omitempty"`   // the filesystem endpoints are served
 }
 
 // injectHostConfig serves index.html with the agent's config prepended.
@@ -114,8 +115,10 @@ func servedOrigins(ln net.Listener) []string {
 	}
 }
 
-// mountHostAgent adds the pty endpoint and returns the config for the page.
-func mountHostAgent(mux *http.ServeMux, ln net.Listener, shell string) (hostConfig, error) {
+// mountHostAgent adds whichever endpoints were asked for and returns the config
+// for the page. One token covers both: they are the same grant of access to the
+// same machine, and two would only suggest otherwise.
+func mountHostAgent(mux *http.ServeMux, ln net.Listener, opt hostOptions) (hostConfig, error) {
 	token, err := hostagent.NewToken()
 	if err != nil {
 		return hostConfig{}, err
@@ -123,21 +126,42 @@ func mountHostAgent(mux *http.ServeMux, ln net.Listener, shell string) (hostConf
 	agent := hostagent.Config{
 		Token:   token,
 		Origins: servedOrigins(ln),
-		Session: hostagent.SessionConfig{Shell: shell},
+		Session: hostagent.SessionConfig{Shell: opt.shell},
 	}
-	mux.Handle(hostproto.Path, agent.Handler())
-	return hostConfig{Token: token, Path: hostproto.Path}, nil
+	cfg := hostConfig{Token: token}
+	if opt.wantShell {
+		mux.Handle(hostproto.Path, agent.Handler())
+		cfg.Path = hostproto.Path
+	}
+	if opt.wantFS {
+		mux.Handle(hostproto.FSPath, agent.FSHandler(hostagent.FSConfig{Root: opt.fsRoot}))
+		cfg.FS = true
+	}
+	return cfg, nil
 }
 
-// warnAboutTheShell says what was just turned on.
+// hostOptions is what the flags asked for.
+type hostOptions struct {
+	wantShell bool
+	wantFS    bool
+	shell     string
+	fsRoot    string
+}
+
+// warnAboutHostAccess says what was just turned on.
 //
 // Loudly, and every time, because the whole risk of this feature is someone
 // leaving it running after they stopped thinking about it.
-func warnAboutTheShell(ln net.Listener) {
-	host := "the machine"
-	if addr, ok := ln.Addr().(*net.TCPAddr); ok && !addr.IP.IsLoopback() {
-		host = addr.IP.String() + ", WHICH IS NOT LOOPBACK"
+func warnAboutHostAccess(opt hostOptions) {
+	if opt.wantShell {
+		fmt.Printf("desk: --shell is ON: this page can run commands on this machine as you.\n")
 	}
-	fmt.Printf("desk: --shell is ON: this page can run commands on %s as you.\n", host)
+	if opt.wantFS {
+		scope := "your whole filesystem"
+		if opt.fsRoot != "" {
+			scope = opt.fsRoot
+		}
+		fmt.Printf("desk: --fs is ON: this page can read and write %s.\n", scope)
+	}
 	fmt.Printf("desk:   guarded by a per-run token and an Origin check; stop the server to revoke both.\n")
 }

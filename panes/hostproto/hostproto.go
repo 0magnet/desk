@@ -93,3 +93,69 @@ const (
 
 // Path is where the agent serves the pty endpoint.
 const Path = "/host/pty"
+
+// The filesystem endpoints.
+//
+// Separate from the pty and separately enabled, because they are separately
+// useful: a file manager over the real filesystem is worth having without
+// handing out a shell, and it is a smaller thing to hand out.
+//
+// Plain HTTP rather than another socket. Every operation is a request and a
+// response with no session between them, which is exactly what an
+// afero.Fs call is — and it means the browser's cache, range requests and
+// content types work on file reads without anything being reimplemented.
+const (
+	FSPath     = "/host/fs/"
+	FSStat     = FSPath + "stat"
+	FSList     = FSPath + "list"
+	FSRead     = FSPath + "read"
+	FSWrite    = FSPath + "write"
+	FSMkdir    = FSPath + "mkdir"
+	FSRemove   = FSPath + "remove"
+	FSRename   = FSPath + "rename"
+	FSChmod    = FSPath + "chmod"
+	FSChtimes  = FSPath + "chtimes"
+	FSTruncate = FSPath + "truncate"
+)
+
+// Query parameters for the filesystem endpoints.
+const (
+	PathParam  = "p"
+	ToParam    = "to"
+	PermParam  = "perm"
+	AllParam   = "all"
+	SizeParam  = "n"
+	ATimeParam = "at"
+	MTimeParam = "mt"
+)
+
+// FileInfo is one entry, as os.FileInfo reduced to what crosses a wire.
+//
+// Short field names because a directory listing is thousands of these and the
+// whole point of the listing is that it appears instantly.
+type FileInfo struct {
+	Name string `json:"n"`
+	Size int64  `json:"s"`
+	Mode uint32 `json:"m"` // as os.FileMode bits
+	Mod  int64  `json:"t"` // unix nanoseconds
+	Dir  bool   `json:"d"`
+}
+
+// Error kinds, so the client can rebuild an error the caller can test.
+//
+// This exists because afero's callers do not read error strings, they call
+// os.IsNotExist — and a "no such file" that fails that test sends a file
+// manager down the "something went wrong" path when it should be creating the
+// file. The kind is what survives the wire; the message is only for a human.
+const (
+	ErrNotExist   = "notexist"
+	ErrExist      = "exist"
+	ErrPermission = "permission"
+	ErrOther      = "other"
+)
+
+// ErrorReply is the body of any failed filesystem request.
+type ErrorReply struct {
+	Kind string `json:"k"`
+	Msg  string `json:"m"`
+}
