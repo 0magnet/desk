@@ -10,8 +10,8 @@ github.com/0magnet/websh v0.0.0-20260818190700-3c413dff1867 h1:cS8OhXTe1N00G4gxn
 github.com/0magnet/websh v0.0.0-20260818190700-3c413dff1867/go.mod h1:wZedPeMztaLuhE8v7lPkwObLKH/G6USZhJf1Y+Z8SZs=
 github.com/0magnet/winbox-go v0.0.0-20260819232003-5105b3373be4 h1:Adxk1jBUU9K2Fsv30wEQx5NOGfccJ6jDP6q5VR5/txE=
 github.com/0magnet/winbox-go v0.0.0-20260819232003-5105b3373be4/go.mod h1:19+/rRQWd/tc9/8CFcUr6C+3AipeZmHyyda2tVombe4=
-github.com/0magnet/xterm-go v0.0.0-20260817124232-e65805e044b1 h1:NB/Ts/4rV2y8d7ZawON6LLodYRGES650kKRib9PKpgg=
-github.com/0magnet/xterm-go v0.0.0-20260817124232-e65805e044b1/go.mod h1:W6c6ofSTsxXuQEr1rSZ3qmfOj5a3LGB3uLQBL0/TiKc=
+github.com/0magnet/xterm-go v0.0.0-20260821144919-16e6fbb03530 h1:JLMvJ25klPjFXssASfkStZY92IHTx0TWpd9wPUrmVbk=
+github.com/0magnet/xterm-go v0.0.0-20260821144919-16e6fbb03530/go.mod h1:W6c6ofSTsxXuQEr1rSZ3qmfOj5a3LGB3uLQBL0/TiKc=
 github.com/benhoyt/goawk v1.31.0 h1:TSdLys1rAWvmb3befdmLYpaHZbTrYtS+JkBWRcNsMNM=
 github.com/benhoyt/goawk v1.31.0/go.mod h1:jXTQxBxtQ0VsjFqc8dw7tIJj3SDzQN8kcdMq7r83/ZA=
 github.com/cpuguy83/go-md2man/v2 v2.0.1/go.mod h1:tgQtvFlXSQOSOSIRvRPT7W67SCa46tRHOmNcaadrF8o=

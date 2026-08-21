@@ -172,22 +172,19 @@ func (p *Pane) connect(cfg agentConfig) {
 		}
 		send(hostproto.Msg{T: hostproto.TypeBinary, D: base64.StdEncoding.EncodeToString(raw)})
 	}
-	// CHAINED, NOT ASSIGNED — and the difference is not stylistic.
+	// Terminal.OnResize, NOT Core.OnResize, and the distinction is not
+	// cosmetic. Open owns Core.OnResize, and its handler is what reallocates
+	// the WebGL renderer for the new grid; taking that field leaves the render
+	// model sized for the old one and the next frame indexes past the end of
+	// it. In wasm that panic ends the Go program, so the symptom is every
+	// window in the desk freezing at once and the pty on the far end of this
+	// socket orphaned because the page never closes it.
 	//
-	// OnData and OnBinary are hooks a consumer is meant to take, which is why
-	// xterm-go's own Attach assigns them. OnResize is not: the Terminal sets
-	// it in Open, and its handler is what calls the WebGL renderer's onResize
-	// — which reallocates the render model for the new grid. Overwriting it
-	// leaves the model sized for the old grid while the renderer reads the
-	// new cols and rows, and the next frame indexes past the end of it. That
-	// panics, and a panic in wasm takes down the whole Go program: every
-	// window in the desk stops repainting at once, and the pty on the other
-	// end of this socket is orphaned because the page never closes it.
-	prev := p.term.Core.OnResize
-	p.term.Core.OnResize = func(cols, rows int) {
-		if prev != nil {
-			prev(cols, rows)
-		}
+	// This pane is why xterm-go grew the safe hook: it was written the wrong
+	// way first, and the wrong way looks right because Attach assigns
+	// Core.OnData. Terminal.OnResize is fanned out from that handler rather
+	// than replacing it, and fires after the renderer is ready.
+	p.term.OnResize = func(cols, rows int) {
 		send(hostproto.Msg{T: hostproto.TypeResize, C: cols, R: rows})
 	}
 }
