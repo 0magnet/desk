@@ -222,6 +222,7 @@ type compositor struct {
 	// them to the DOM. See chrome_js.go: it exists so the canvas can be a
 	// complete picture of the desk, which is what a caller texturing it needs.
 	drawChrome bool
+	background [4]float32
 
 	cssW, cssH float64
 	dpr        float64
@@ -256,6 +257,22 @@ type CompositingOptions struct {
 	// something is going to sample it as a texture, where a frame left on the
 	// DOM is a frame that is simply not in the picture.
 	DrawChrome bool
+
+	// Background fills the desktop, instead of leaving it transparent.
+	//
+	// Transparent is right for a compositor that overlays a page: what is
+	// behind the windows is the page, and clearing to a color would hide it.
+	// It is wrong for a canvas that is about to become a texture, and wrong in
+	// a way that is confusing rather than ugly — a desk with no background is
+	// a window floating in nothing, so when the quad turns there is no visible
+	// surface for it to turn ON. The windows appear to pivot about an axis
+	// that is not through them, which is exactly what they are doing: the axis
+	// is through the middle of the DESK, and without a background the desk is
+	// invisible.
+	//
+	// RGBA, straight rather than premultiplied, in 0..1. The zero value leaves
+	// it transparent.
+	Background [4]float32
 }
 
 // Canvas is the compositor's canvas, or a zero Value when compositing is off.
@@ -284,6 +301,13 @@ func EnableCompositingOpts(opt CompositingOptions) error {
 		// it, since the caller that flips DrawChrome is usually the one that
 		// just decided to texture the canvas.
 		comp.drawChrome = opt.DrawChrome
+		comp.background = opt.Background
+		if !opt.DrawChrome {
+			// The drawn copy is about to stop being drawn, so the real one has
+			// to come back — otherwise the desk keeps a panel that is present,
+			// clickable and invisible.
+			restorePanelDOM()
+		}
 	}
 	mu.Unlock()
 	if already {
@@ -333,6 +357,7 @@ func EnableCompositingOpts(opt CompositingOptions) error {
 	gl.Call("blendFunc", glSrcAlpha, glOneMinusSrcAlpha)
 
 	c.drawChrome = opt.DrawChrome
+	c.background = opt.Background
 	c.running = true
 	mu.Lock()
 	comp = c
@@ -358,7 +383,11 @@ func EnableCompositingOpts(opt CompositingOptions) error {
 
 // DisableCompositing puts every window back on the DOM path. Safe to call when
 // compositing was never on.
+// restorePanelDOM is called wherever the drawn copy stops being drawn.
+func restorePanelDOM() { hidePanelDOM(false) }
+
 func DisableCompositing() {
+	restorePanelDOM()
 	mu.Lock()
 	c := comp
 	comp = nil
@@ -457,7 +486,8 @@ func (c *compositor) frame() {
 	}
 
 	gl := c.gl
-	gl.Call("clearColor", 0, 0, 0, 0)
+	bg := c.background
+	gl.Call("clearColor", float64(bg[0]), float64(bg[1]), float64(bg[2]), float64(bg[3]))
 	gl.Call("clear", glColorBufferBit)
 	gl.Call("useProgram", c.prog)
 
@@ -491,6 +521,16 @@ func (c *compositor) frame() {
 			continue
 		}
 		lw.hide()
+	}
+
+	// The panel LAST, so it is over the windows — which is what its z-index of
+	// 100000 says on the page, and what a panel is for.
+	if c.drawChrome {
+		hidePanelDOM(true)
+		snap := c.readPanel(view)
+		if bar := c.panelChrome(snap); bar.Truthy() {
+			c.textured(panelChromeID, snap.r, bar)
+		}
 	}
 }
 
