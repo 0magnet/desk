@@ -38,5 +38,3 @@ require (
 	golang.org/x/term v0.45.0 // indirect
 	golang.org/x/text v0.41.0 // indirect
 )
-
-replace github.com/0magnet/desk => ../
