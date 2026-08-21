@@ -42,6 +42,7 @@ type Pane struct {
 	host     string
 	run      []string
 	session  *web.Session
+	el       js.Value // what Mount rendered into; Canvas looks inside it
 }
 
 // New makes a terminal pane. An empty host is named for the desk.
@@ -73,10 +74,34 @@ func (p *Pane) Mount(el js.Value) error {
 		return err
 	}
 	p.session = s
+	p.el = el
 	for _, line := range p.run {
 		s.Submit(line)
 	}
 	return nil
+}
+
+// Canvas implements desk.TexturePane: with websh's default options the terminal
+// runs xterm-go's WebGL renderer, and then every glyph on screen is in that one
+// canvas — which is what lets the desk composite this pane as a texture instead
+// of laying it out as DOM.
+//
+// It returns nothing when there is no such canvas, which is not an error and is
+// not rare: websh falls back to the DOM renderer wherever WebGL2 is missing,
+// and so does the desk, pane by pane. The class is xterm-go's own; matching on
+// it rather than on "the first canvas in here" keeps this from picking up a
+// canvas some other part of the terminal might grow.
+//
+// Not cached. The renderer can be switched at runtime — EnableWebGL and
+// DisableWebGL create and remove this element — so a cached hit would outlive
+// the canvas it named, and the compositor would upload a detached element every
+// frame. A querySelector over a terminal's handful of nodes is not worth
+// avoiding at 60 Hz.
+func (p *Pane) Canvas() js.Value {
+	if !p.el.Truthy() {
+		return js.Value{}
+	}
+	return p.el.Call("querySelector", "canvas.xterm-webgl-canvas")
 }
 
 // Close ends the session. The shared filesystem outlives it.

@@ -16,9 +16,11 @@ desk:~$ open files                                or use the menu, bottom left
 ## What it is
 
 ```
-desk.go        the registry: apps, windows, mounting, teardown
-panel.go       the panel — Applications menu, task buttons, clock
-dom/           element building without the syscall/js ceremony
+desk.go            the registry: apps, windows, mounting, teardown
+panel.go           the panel — Applications menu, task buttons, clock
+compositor.go      the optional WebGL path: what to draw, where, in what order
+compositor_js.go   the same path's WebGL2 calls
+dom/               element building without the syscall/js ceremony
 
 panes/                    a second module — see below
 panes/term                a websh shell
@@ -46,6 +48,43 @@ a `ResizeObserver`. The terminal pane does not implement it.
 
 That is the point of the arrangement: a project brings its own pane rather than
 waiting for this package to grow support for it.
+
+## Compositing in WebGL, optionally
+
+Off by default, and one call to turn on:
+
+```go
+if err := desk.EnableCompositing(); err != nil {
+	// nothing has changed; the desk is the DOM desktop it already was
+}
+```
+
+The DOM cannot be sampled into a WebGL texture, so compositing arbitrary panes
+in WebGL would mean reimplementing layout, text and input in GL — a UI toolkit,
+and not this project. A canvas *can* be a texture: `texImage2D` takes an
+`HTMLCanvasElement` directly. So a pane says whether it is one:
+
+```go
+type TexturePane interface {
+	Canvas() js.Value
+}
+```
+
+A terminal running xterm-go's WebGL renderer has every glyph it shows in one
+canvas, so `panes/term` implements it. Panes that do not are untouched.
+
+Composited windows are drawn as textured quads with their chrome as flat
+geometry; the DOM windows stay underneath at `opacity: 0`, so dragging,
+resizing, focus and the keyboard are still the DOM's job and the compositor is
+only a repaint. The title *text* is not drawn — the panel still has it.
+
+Everything falls back, per frame and per window: no WebGL2 context, a pane that
+is not canvas-backed, a canvas not sized yet, a lost context, or any exception
+out of a GL call, and the window concerned — or the whole desk — is on the DOM
+path again with one style property. The GL layer sits above every window and
+below the panel, which is why only an unbroken run at the top of the stack is
+composited: a composited window would otherwise paint over a DOM window that is
+supposed to be in front of it.
 
 ## Two modules
 

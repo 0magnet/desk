@@ -44,6 +44,26 @@ type Resizer interface {
 	Resize(width, height float64)
 }
 
+// TexturePane is implemented by a pane whose pixels all live in one canvas.
+//
+// It exists because the DOM cannot be sampled into a WebGL texture and a canvas
+// can: texImage2D takes an HTMLCanvasElement directly. That single asymmetry is
+// what decides which panes the WebGL compositor can draw, so rather than have
+// the desk guess — hunt for a canvas in the pane's subtree, and be wrong about
+// the one pane that has two — a pane says so itself.
+//
+// Implement it only if the canvas really is the whole pane. A pane that draws
+// into a canvas and puts a toolbar beside it must not: the toolbar would be
+// left out of the picture. Implementing it costs nothing when the compositor is
+// off, which is the default — see EnableCompositing.
+//
+// Returning a zero or undefined value, or a canvas that has not been sized yet,
+// is allowed and means "not now": that pane stays on the DOM path for as long
+// as it keeps saying so, and is picked up on the first frame it does not.
+type TexturePane interface {
+	Canvas() js.Value
+}
+
 // App is a registered pane type: what to call it, and how to make one.
 type App struct {
 	Name  string // the identifier passed to Launch
@@ -221,6 +241,21 @@ func LaunchOpts(name string, opt Options, args ...string) (*winbox.WinBox, error
 			r.Resize(width, height)
 		}
 	}
+
+	// Tracked whether or not the WebGL compositor is running: what it can draw
+	// depends on the windows it cannot, and a window that existed before
+	// EnableCompositing was called has to be as visible to it as one opened
+	// after. See compositor.go.
+	lw := trackWindow(win, pane)
+	prevTrack := win.OnClose
+	win.OnClose = func(wb *winbox.WinBox, force bool) bool {
+		if prevTrack != nil && prevTrack(wb, force) {
+			return true
+		}
+		untrackWindow(lw)
+		return false
+	}
+
 	if panel != nil {
 		alive := true
 		tracked := &Window{
