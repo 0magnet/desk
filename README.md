@@ -28,6 +28,11 @@ panes/files               a file manager
 panes/viewer              an image and text viewer, plus the `view` command
 panes/cmd/desk            the demo
 panes/cmd/desk-serve      a native binary that serves it, assets embedded
+
+panes/hostproto           the wire between a pane and the machine
+panes/hostagent           the half that runs on the machine: a pty, and files
+panes/hostterm            a pane that is a real shell on the machine
+panes/hostfs              the machine's filesystem, as an afero.Fs
 ```
 
 The shell knows nothing about terminals, images or files. A pane is:
@@ -126,6 +131,62 @@ instantiate a module fetched that way — and because a wrong `Content-Type` on
 the `.wasm` makes `instantiateStreaming` fail with an error that mentions
 nothing about MIME types.
 
+## Reaching the machine
+
+The desk is a desktop environment that could touch nothing: its shell is websh,
+a Bash interpreter compiled to wasm, and its filesystem is an in-memory afero
+kept in IndexedDB. All of it works and none of it is yours. Two flags change
+that, and both are off:
+
+```
+(cd panes && go run ./cmd/desk-serve --shell)          # a real pty in a window
+(cd panes && go run ./cmd/desk-serve --fs)             # real files
+(cd panes && go run ./cmd/desk-serve --fs --fs-root ~) # ...confined to a subtree
+```
+
+`--shell` adds the **host shell** app: xterm-go in a window, attached over a
+WebSocket to a pty running your `$SHELL`. It resizes with the window, because a
+resize becomes a `TIOCSWINSZ` and so a `SIGWINCH`, which is what makes a
+full-screen program redraw.
+
+`--fs` is the one that does more than it looks like. websh's shell and the file
+manager both work against `afero.Fs`, an **interface**, and websh takes any
+implementation — so a single host-backed `afero.Fs` makes the file manager list
+real directories *and* gives the wasm shell real files: `ls`, `cat`, `grep`,
+globbing, redirection. The interpreter still runs in the tab; only what it reads
+and writes stops being imaginary. It is three lines in `cmd/desk`, and nothing
+below them knows which filesystem it got.
+
+`/bin` stays synthetic. websh writes a stub there for every applet so `ls /bin`
+shows the command set, which is right for a filesystem in a tab and would
+otherwise scatter fifty empty files into a home directory; `hostfs.Mount` routes
+that one path to memory and everything else to the machine.
+
+### What this costs, said plainly
+
+A browser tab that can run commands as you is the most valuable target on the
+machine, and any page you visit may try to reach localhost. So:
+
+- nothing is served unless `--shell` or `--fs` is passed;
+- either flag with a **non-loopback** listener is refused outright, not warned
+  about;
+- the `Origin` must match a page this listener served — and for ordinary
+  requests `Sec-Fetch-Site` is checked, because a browser does **not** send
+  `Origin` on a same-origin GET, so requiring one refuses exactly the traffic
+  the check exists to permit;
+- a token from `crypto/rand`, per run, never written to disk;
+- `--fs-root` confines paths for real: they are resolved through
+  `EvalSymlinks` on the longest **existing** prefix, so a symlink planted inside
+  the root cannot be followed out of it.
+
+The Origin check is the load-bearing one and the token is honestly the weaker
+guard: a browser sets `Origin` itself and script cannot forge it, whereas a
+local process running as you can read the token out of the served page — and
+such a process already has your shell without asking this one. Defense in
+depth, not a boundary. A zero `Config` refuses everything.
+
+Stopping the server revokes both.
+
 ## The filesystem is the channel
 
 Every pane shares one [afero](https://github.com/0magnet/afero) filesystem, so
@@ -155,7 +216,10 @@ window body  500x285  ->  terminal canvas  477x280
 ## What it does not do
 
 No workspaces, no session management, no multi-monitor, no file operations
-beyond browsing. The panel and the menu are what make a collection of windows
+beyond browsing. Nothing here is a sandbox: with `--shell` the pty is your
+account, and `--fs` without `--fs-root` is your whole filesystem — which is the
+right default only because `--shell` already implies it, and a fence beside an
+open gate is not a fence. The panel and the menu are what make a collection of windows
 read as a desktop; the rest is refinement on top of those two.
 ## Dependency Graph
 
@@ -181,15 +245,15 @@ gocloc --not-match-d='(vendor|node_modules|\.git)' .
 -------------------------------------------------------------------------------
 Language                     files          blank        comment           code
 -------------------------------------------------------------------------------
-Go                              11            182            224           1188
+Go                              29            660           1338           4676
 JavaScript                       2            117             82            935
-Markdown                         1             36              0            118
+Markdown                         1             56              0            203
 YAML                             1              0              7             98
 HTML                             2              0              0             92
-Makefile                         1             14             21             55
+Makefile                         1             19             31             86
 Bourne Shell                     2             13             29             50
 JSON                             2              0              0             28
 -------------------------------------------------------------------------------
-TOTAL                           22            362            363           2564
+TOTAL                           40            865           1487           6168
 -------------------------------------------------------------------------------
 ```

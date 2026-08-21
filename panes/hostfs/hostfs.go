@@ -129,41 +129,6 @@ func (f *Fs) request(method, endpoint string, q url.Values, body []byte) ([]byte
 	return raw, nil
 }
 
-// decodeUserDefined undoes the x-user-defined encoding: bytes below 0x80 are
-// themselves, and everything above is at U+F700 plus the byte.
-func decodeUserDefined(s string) []byte {
-	out := make([]byte, 0, len(s))
-	for _, r := range s {
-		out = append(out, byte(r&0xff))
-	}
-	return out
-}
-
-// decodeError rebuilds an error the CALLER CAN TEST.
-//
-// This is the reason the agent sends a kind rather than only a message: afero's
-// callers do not read error strings, they call os.IsNotExist. A "no such file"
-// that fails that test sends a file manager down the "something went wrong"
-// path when it should be offering to create the file.
-func decodeError(body []byte, status int) error {
-	var rep hostproto.ErrorReply
-	if err := json.Unmarshal(body, &rep); err != nil {
-		return fmt.Errorf("hostfs: the agent answered %d", status)
-	}
-	var base error
-	switch rep.Kind {
-	case hostproto.ErrNotExist:
-		base = fs.ErrNotExist
-	case hostproto.ErrExist:
-		base = fs.ErrExist
-	case hostproto.ErrPermission:
-		base = fs.ErrPermission
-	default:
-		return errors.New(rep.Msg)
-	}
-	return fmt.Errorf("%s: %w", rep.Msg, base)
-}
-
 func pathValues(name string) url.Values {
 	return url.Values{hostproto.PathParam: []string{name}}
 }
