@@ -24,9 +24,17 @@ import (
 // that has to fetch its token can open a window before the answer arrives, and
 // then the first shell of every session fails once.
 type hostConfig struct {
-	Token string `json:"token"`
-	Path  string `json:"path,omitempty"` // the pty endpoint; empty when --shell is off
-	FS    bool   `json:"fs,omitempty"`   // the filesystem endpoints are served
+	// Token is the agent's token — and is EMPTY under --auth, which is the
+	// whole of what that flag does to the page. See panes/hostauth: the
+	// injected token is only as private as the page, and on a shared machine
+	// another user can fetch the page and read it.
+	Token string `json:"token,omitempty"`
+
+	// Auth tells the page to ask for a token it was not given.
+	Auth bool `json:"auth,omitempty"`
+
+	Path string `json:"path,omitempty"` // the pty endpoint; empty when --shell is off
+	FS   bool   `json:"fs,omitempty"`   // the filesystem endpoints are served
 }
 
 // injectHostConfig serves index.html with the agent's config prepended.
@@ -129,6 +137,11 @@ func mountHostAgent(mux *http.ServeMux, ln net.Listener, opt hostOptions) (hostC
 		Session: hostagent.SessionConfig{Shell: opt.shell},
 	}
 	cfg := hostConfig{Token: token}
+	if opt.auth {
+		// The page is told there is a token to supply, and not what it is.
+		cfg.Token, cfg.Auth = "", true
+		fmt.Printf("\ndesk: --auth is ON. The page will ask for this token:\n\n    %s\n\n", token)
+	}
 	if opt.wantShell {
 		mux.Handle(hostproto.Path, agent.Handler())
 		cfg.Path = hostproto.Path
@@ -146,6 +159,7 @@ type hostOptions struct {
 	wantFS    bool
 	shell     string
 	fsRoot    string
+	auth      bool
 }
 
 // warnAboutHostAccess says what was just turned on.
@@ -164,4 +178,8 @@ func warnAboutHostAccess(opt hostOptions) {
 		fmt.Printf("desk: --fs is ON: this page can read and write %s.\n", scope)
 	}
 	fmt.Printf("desk:   guarded by a per-run token and an Origin check; stop the server to revoke both.\n")
+	if !opt.auth {
+		fmt.Printf("desk:   the token is in the served page. On a machine with other users on it,\n")
+		fmt.Printf("desk:   add --auth so it is printed here instead — they can read the page.\n")
+	}
 }

@@ -27,12 +27,13 @@ import (
 )
 
 var (
-	addr   string
-	open   bool
-	shell  bool
-	shcmd  string
-	hostFS bool
-	fsRoot string
+	addr     string
+	open     bool
+	shell    bool
+	shcmd    string
+	hostFS   bool
+	fsRoot   string
+	hostAuth bool
 )
 
 func init() {
@@ -42,6 +43,7 @@ func init() {
 	RootCmd.Flags().StringVar(&shcmd, "shell-cmd", "", "what --shell starts (default $SHELL, then /bin/sh)")
 	RootCmd.Flags().BoolVarP(&hostFS, "fs", "f", false, "let the page read and write this machine's files")
 	RootCmd.Flags().StringVar(&fsRoot, "fs-root", "", "confine --fs to this subtree (default: the whole filesystem)")
+	RootCmd.Flags().BoolVar(&hostAuth, "auth", false, "print the token instead of putting it in the page, and ask for it (for shared machines)")
 	var helpflag bool
 	RootCmd.SetUsageTemplate(help)
 	RootCmd.PersistentFlags().BoolVarP(&helpflag, "help", "h", false, "help for "+RootCmd.Use)
@@ -78,7 +80,7 @@ var RootCmd = &cobra.Command{
 		mux := http.NewServeMux()
 		page := noCache(http.FileServerFS(desk.Assets()))
 
-		opt := hostOptions{wantShell: shell, wantFS: hostFS, shell: shcmd, fsRoot: fsRoot}
+		opt := hostOptions{wantShell: shell, wantFS: hostFS, shell: shcmd, fsRoot: fsRoot, auth: hostAuth}
 		if opt.wantShell || opt.wantFS {
 			// Refusing rather than warning. The Origin check makes a
 			// non-loopback listener less bad than it sounds, but "a shell,

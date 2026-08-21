@@ -162,6 +162,37 @@ shows the command set, which is right for a filesystem in a tab and would
 otherwise scatter fifty empty files into a home directory; `hostfs.Mount` routes
 that one path to memory and everything else to the machine.
 
+### On a machine with other people on it
+
+The token above is injected into the served page, which is frictionless and
+exactly right when the only person who can read that page is you. It is not
+right on a shared box, and the reason is worth being precise about: **the
+Origin check does not stop a local process.** It stops a hostile web *page*,
+because a browser sets `Origin` itself and script cannot change it — but
+anything that is not a browser simply sends whatever header it likes. So
+another user can fetch the page, read the token out of it, forge an `Origin`,
+and have a shell as you.
+
+```
+(cd panes && go run ./cmd/desk-serve --shell --auth)
+```
+
+`--auth` prints the token to the terminal that started the server and leaves it
+out of the page. Opening the **host shell** app then asks for it, in the
+terminal itself, and remembers it in `sessionStorage` for the rest of the tab.
+A wrong one is refused and it asks again.
+
+There is deliberately **no `--password` flag**. A password on a command line is
+not a secret: `/proc/<pid>/cmdline` is readable by other users on exactly the
+machines where this threat exists, so the flag would hand the password to the
+attacker it was meant to stop. The secret is generated, and only ever travels
+from the server's own terminal to the person reading it.
+
+It asks in the pane rather than in a `window.prompt()`, which is what it did
+first and was wrong twice over: a native dialog blocks the whole page before
+anything is on screen, and it demands a token from everyone whether or not they
+were going to open a shell.
+
 ### What this costs, said plainly
 
 A browser tab that can run commands as you is the most valuable target on the
@@ -174,7 +205,8 @@ machine, and any page you visit may try to reach localhost. So:
   requests `Sec-Fetch-Site` is checked, because a browser does **not** send
   `Origin` on a same-origin GET, so requiring one refuses exactly the traffic
   the check exists to permit;
-- a token from `crypto/rand`, per run, never written to disk;
+- a token from `crypto/rand`, per run, never written to disk — injected into
+  the page by default, or printed to the terminal instead with `--auth`;
 - `--fs-root` confines paths for real: they are resolved through
   `EvalSymlinks` on the longest **existing** prefix, so a symlink planted inside
   the root cannot be followed out of it.
@@ -245,15 +277,15 @@ gocloc --not-match-d='(vendor|node_modules|\.git)' .
 -------------------------------------------------------------------------------
 Language                     files          blank        comment           code
 -------------------------------------------------------------------------------
-Go                              29            660           1338           4676
+Go                              33            733           1573           5226
 JavaScript                       2            117             82            935
-Markdown                         1             56              0            203
+Markdown                         1             62              0            229
 YAML                             1              0              7             98
 HTML                             2              0              0             92
 Makefile                         1             19             31             86
 Bourne Shell                     2             13             29             50
 JSON                             2              0              0             28
 -------------------------------------------------------------------------------
-TOTAL                           40            865           1487           6168
+TOTAL                           44            944           1722           6744
 -------------------------------------------------------------------------------
 ```

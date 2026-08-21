@@ -19,21 +19,25 @@ import (
 	"encoding/json"
 	"net/url"
 	"strconv"
+	"strings"
 	"syscall/js"
 
 	xterm "github.com/0magnet/xterm-go"
 	"github.com/0magnet/xterm-go/vt"
+
+	"github.com/0magnet/desk/panes/hostauth"
 
 	"github.com/0magnet/desk/panes/hostproto"
 )
 
 // Pane is a terminal attached to a shell on the host.
 type Pane struct {
-	term  *xterm.Terminal
-	ws    js.Value
-	el    js.Value
-	funcs []js.Func
-	shut  bool // Close was called; stop reporting the socket going away
+	term   *xterm.Terminal
+	ws     js.Value
+	el     js.Value
+	funcs  []js.Func
+	shut   bool // Close was called; stop reporting the socket going away
+	opened bool // the socket got as far as opening, so a close is a disconnect
 }
 
 // New makes a host terminal pane.
@@ -65,7 +69,11 @@ func (p *Pane) Mount(el js.Value) error {
 
 	cfg, ok := hostAgent()
 	if !ok {
-		p.writeNoAgent()
+		if hostauth.Required() {
+			p.askForToken()
+		} else {
+			p.writeNoAgent()
+		}
 		return nil
 	}
 	p.connect(cfg)
@@ -88,11 +96,16 @@ func hostAgent() (agentConfig, bool) {
 	if !h.Truthy() {
 		return agentConfig{}, false
 	}
-	path, token := h.Get("path"), h.Get("token")
-	if !path.Truthy() || !token.Truthy() {
+	path := h.Get("path")
+	if !path.Truthy() {
+		return agentConfig{}, false // an agent, but no pty half of it
+	}
+	// May ask the person for it — see hostauth.
+	token := hostauth.Token()
+	if token == "" {
 		return agentConfig{}, false
 	}
-	return agentConfig{path: path.String(), token: token.String()}, true
+	return agentConfig{path: path.String(), token: token}, true
 }
 
 // socketURL builds the agent's address from the page's own.
@@ -134,9 +147,21 @@ func (p *Pane) connect(cfg agentConfig) {
 		p.term.Write(buf)
 	}))
 
+	ws.Call("addEventListener", "open", p.fn(func([]js.Value) { p.opened = true }))
 	ws.Call("addEventListener", "close", p.fn(func([]js.Value) {
 		if p.shut {
 			return // the window closed; the socket following it is not news
+		}
+		if !p.opened {
+			// It never opened, so this is a refusal rather than a
+			// disconnection — almost always the wrong token, since that is
+			// the only thing the person supplies.
+			// No prompt printed here: askForToken prints its own, and doing
+			// both gives two carets and no explanation between them.
+			p.term.WriteString("\r\n\x1b[31mrefused.\x1b[0m\r\n\r\n")
+			hostauth.Forget()
+			p.askForToken()
+			return
 		}
 		// Distinguished from a mount with no agent at all, because the
 		// remedies are different: this one is usually the server having
@@ -186,6 +211,59 @@ func (p *Pane) connect(cfg agentConfig) {
 	// than replacing it, and fires after the renderer is ready.
 	p.term.OnResize = func(cols, rows int) {
 		send(hostproto.Msg{T: hostproto.TypeResize, C: cols, R: rows})
+	}
+}
+
+// writeNeedsToken explains the other absence: there IS an agent, and nobody
+// has supplied its token. Distinguished from having no agent at all because
+// the remedies are different, and "no host agent" would be a lie.
+// askForToken reads the token in the terminal itself.
+//
+// Here rather than in a window.prompt(), which is what this did first and was
+// wrong twice over: a native dialog blocks the whole page before anything is on
+// screen, and it demanded a token from everyone whether or not they were going
+// to open a shell. Asking in the pane that needs it means the question appears
+// exactly when it is relevant, in a terminal that is already good at reading a
+// line of text.
+func (p *Pane) askForToken() {
+	p.term.WriteString("\x1b[1;33mToken required.\x1b[0m \x1b[2m--auth: the server printed it.\x1b[0m\r\n\r\n> ")
+
+	p.opened = false
+	var typed []rune
+	p.term.Core.OnData = func(data string) {
+		for _, r := range data {
+			switch r {
+			case '\r', '\n':
+				tok := strings.TrimSpace(string(typed))
+				typed = typed[:0]
+				p.term.WriteString("\r\n")
+				if tok == "" {
+					p.term.WriteString("> ")
+					continue
+				}
+				hostauth.Remember(tok)
+				cfg, ok := hostAgent()
+				if !ok {
+					p.term.WriteString("\x1b[31mstill no agent to connect to.\x1b[0m\r\n")
+					return
+				}
+				p.term.WriteString("\x1b[2mconnecting…\x1b[0m\r\n")
+				p.connect(cfg)
+			case 127, 8: // backspace
+				if len(typed) > 0 {
+					typed = typed[:len(typed)-1]
+					p.term.WriteString("\b \b")
+				}
+			default:
+				if r >= 32 {
+					typed = append(typed, r)
+					// Echoed as dots. It is a credential, and a terminal in a
+					// window manager is a terminal somebody may be screen
+					// sharing.
+					p.term.WriteString("•")
+				}
+			}
+		}
 	}
 }
 

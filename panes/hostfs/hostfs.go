@@ -51,6 +51,8 @@ import (
 
 	"github.com/0magnet/afero"
 
+	"github.com/0magnet/desk/panes/hostauth"
+
 	"github.com/0magnet/desk/panes/hostproto"
 )
 
@@ -68,15 +70,20 @@ func New() (*Fs, bool) {
 	if !h.Truthy() {
 		return nil, false
 	}
-	tok := h.Get("token")
 	// The fs flag is checked separately from the token because the two grants
 	// are separate: a page served with --shell but not --fs has a valid token
 	// and no filesystem behind it, and answering true there would turn every
 	// directory listing into a 404 instead of a clean fall back to memory.
-	if !tok.Truthy() || !h.Get("fs").Truthy() {
+	if !h.Get("fs").Truthy() {
 		return nil, false
 	}
-	return &Fs{token: tok.String()}, true
+	// May ask the person for it — see hostauth. An empty answer is a decision,
+	// not a failure: the caller falls back to the in-memory filesystem.
+	tok := hostauth.Token()
+	if tok == "" {
+		return nil, false
+	}
+	return &Fs{token: tok}, true
 }
 
 // Name identifies this filesystem. It shows up in afero's error strings, so it
