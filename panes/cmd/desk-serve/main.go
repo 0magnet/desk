@@ -1,3 +1,5 @@
+//go:build !js
+
 // Command desk-serve serves the desk web view from a single binary.
 //
 // The page, the wasm and its loader are embedded, so this needs no checkout, no
@@ -25,13 +27,17 @@ import (
 )
 
 var (
-	addr string
-	open bool
+	addr  string
+	open  bool
+	shell bool
+	shcmd string
 )
 
 func init() {
 	RootCmd.Flags().StringVarP(&addr, "addr", "a", "127.0.0.1:8080", "address to listen on")
 	RootCmd.Flags().BoolVarP(&open, "open", "o", true, "open a browser at the served page")
+	RootCmd.Flags().BoolVarP(&shell, "shell", "s", false, "let the page run a real shell on this machine")
+	RootCmd.Flags().StringVar(&shcmd, "shell-cmd", "", "what --shell starts (default $SHELL, then /bin/sh)")
 	var helpflag bool
 	RootCmd.SetUsageTemplate(help)
 	RootCmd.PersistentFlags().BoolVarP(&helpflag, "help", "h", false, "help for "+RootCmd.Use)
@@ -66,7 +72,26 @@ var RootCmd = &cobra.Command{
 		}
 
 		mux := http.NewServeMux()
-		mux.Handle("/", noCache(http.FileServerFS(desk.Assets())))
+		page := noCache(http.FileServerFS(desk.Assets()))
+
+		if shell {
+			// Refusing rather than warning. The Origin check makes a
+			// non-loopback listener less bad than it sounds, but "a shell,
+			// reachable from the network, because a flag defaulted" is not a
+			// sentence this should ever be able to produce. Bind loopback.
+			if a, ok := ln.Addr().(*net.TCPAddr); !ok || !a.IP.IsLoopback() {
+				log.Fatalf("desk: --shell needs a loopback address; %s is reachable from elsewhere", ln.Addr())
+			}
+			cfg, err := mountHostAgent(mux, ln, shcmd)
+			if err != nil {
+				log.Fatalf("desk: %v", err)
+			}
+			if page, err = injectHostConfig(desk.Assets(), page, cfg); err != nil {
+				log.Fatalf("desk: %v", err)
+			}
+			warnAboutTheShell(ln)
+		}
+		mux.Handle("/", page)
 
 		fmt.Printf("desk: serving on %s\n", url)
 		if open {
@@ -116,7 +141,9 @@ func browse(url string) {
 	default:
 		cmd = "xdg-open"
 	}
-	if err := exec.Command(cmd, append(args, url)...).Start(); err != nil {
+	// The command is chosen by the switch above and the URL is this process's
+	// own listener, so nothing here comes from outside.
+	if err := exec.Command(cmd, append(args, url)...).Start(); err != nil { //nolint:gosec
 		log.Printf("desk: could not open a browser (%v); visit %s", err, url)
 	}
 }

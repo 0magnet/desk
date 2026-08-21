@@ -1,0 +1,117 @@
+//go:build !js
+
+package main
+
+import (
+	"bytes"
+	"encoding/json"
+	"fmt"
+	"io/fs"
+	"net"
+	"net/http"
+
+	"github.com/0magnet/desk/panes/hostagent"
+	"github.com/0magnet/desk/panes/hostproto"
+)
+
+// The host agent is wired up here rather than in hostagent because deciding
+// whether to expose the machine is the command's business, not the library's.
+// A package that mounts itself is a package that gets mounted by accident.
+
+// hostConfig is what the page is told about the agent. It is injected into
+// index.html as a global, which is the only delivery that has no race: a page
+// that has to fetch its token can open a window before the answer arrives, and
+// then the first shell of every session fails once.
+type hostConfig struct {
+	Token string `json:"token"`
+	Path  string `json:"path"`
+}
+
+// injectHostConfig serves index.html with the agent's config prepended.
+//
+// Rewriting on the way out rather than committing a placeholder into docs/
+// keeps the built page a static artifact that still works when served by
+// anything else — with no agent, the global is simply absent and the pane says
+// so, which is exactly what should happen on GitHub Pages.
+func injectHostConfig(assets fs.FS, next http.Handler, cfg hostConfig) (http.Handler, error) {
+	page, err := fs.ReadFile(assets, "index.html")
+	if err != nil {
+		return nil, fmt.Errorf("reading the embedded page: %w", err)
+	}
+	blob, err := json.Marshal(cfg)
+	if err != nil {
+		return nil, fmt.Errorf("encoding the host config: %w", err)
+	}
+	// json.Marshal is what makes this safe to interpolate: the token is hex
+	// from crypto/rand and the path is a constant, but building script from
+	// string concatenation is a habit worth not having.
+	tag := []byte("<script>window.__deskHost=" + string(blob) + ";</script>\n")
+
+	marker := []byte("</head>")
+	i := bytes.Index(page, marker)
+	if i < 0 {
+		return nil, fmt.Errorf("the embedded page has no </head> to inject into")
+	}
+	injected := make([]byte, 0, len(page)+len(tag))
+	injected = append(injected, page[:i]...)
+	injected = append(injected, tag...)
+	injected = append(injected, page[i:]...)
+
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/" && r.URL.Path != "/index.html" {
+			next.ServeHTTP(w, r)
+			return
+		}
+		w.Header().Set("Content-Type", "text/html; charset=utf-8")
+		w.Header().Set("Cache-Control", "no-store")
+		_, _ = w.Write(injected) //nolint:errcheck // the client hung up; there is no second channel to say so on
+	}), nil
+}
+
+// servedOrigins is the set of Origin values a browser might send for a page
+// this listener served.
+//
+// Both spellings are needed because they are different origins to the browser
+// and only one of them is what the address bar ends up saying: the agent may
+// print 127.0.0.1 while the person types localhost, or the reverse, and a
+// mismatch would refuse the connection for a reason that looks like a bug.
+func servedOrigins(ln net.Listener) []string {
+	addr, ok := ln.Addr().(*net.TCPAddr)
+	if !ok {
+		return []string{"http://" + ln.Addr().String()}
+	}
+	port := addr.Port
+	return []string{
+		fmt.Sprintf("http://127.0.0.1:%d", port),
+		fmt.Sprintf("http://localhost:%d", port),
+		fmt.Sprintf("http://[::1]:%d", port),
+	}
+}
+
+// mountHostAgent adds the pty endpoint and returns the config for the page.
+func mountHostAgent(mux *http.ServeMux, ln net.Listener, shell string) (hostConfig, error) {
+	token, err := hostagent.NewToken()
+	if err != nil {
+		return hostConfig{}, err
+	}
+	agent := hostagent.Config{
+		Token:   token,
+		Origins: servedOrigins(ln),
+		Session: hostagent.SessionConfig{Shell: shell},
+	}
+	mux.Handle(hostproto.Path, agent.Handler())
+	return hostConfig{Token: token, Path: hostproto.Path}, nil
+}
+
+// warnAboutTheShell says what was just turned on.
+//
+// Loudly, and every time, because the whole risk of this feature is someone
+// leaving it running after they stopped thinking about it.
+func warnAboutTheShell(ln net.Listener) {
+	host := "the machine"
+	if addr, ok := ln.Addr().(*net.TCPAddr); ok && !addr.IP.IsLoopback() {
+		host = addr.IP.String() + ", WHICH IS NOT LOOPBACK"
+	}
+	fmt.Printf("desk: --shell is ON: this page can run commands on %s as you.\n", host)
+	fmt.Printf("desk:   guarded by a per-run token and an Origin check; stop the server to revoke both.\n")
+}
