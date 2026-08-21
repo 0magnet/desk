@@ -74,8 +74,23 @@ func Style(k, v string) Node {
 	return optFunc(func(el js.Value) { el.Get("style").Set(k, v) })
 }
 
+// FSChangedEvent is dispatched on window when the desk's shared filesystem is
+// replaced under panes that are already using it — which happens when a --auth
+// token arrives after the page is running and memory is swapped for the
+// machine. A pane showing a directory listing has no other way to know its
+// contents just became a different filesystem.
+//
+// It lives here, in the leaf both sides already import, rather than beside the
+// filesystem itself: the file manager would otherwise have to import the
+// terminal to learn a string, and with it websh, which is a shell interpreter
+// this module deliberately does not make a window manager depend on.
+const FSChangedEvent = "desk:fschanged"
+
 // Funcs collects callbacks so they can be released together.
-type Funcs struct{ fns []js.Func }
+type Funcs struct {
+	fns    []js.Func
+	detach []func()
+}
 
 // On adds a listener, retaining the callback in f.
 func (f *Funcs) On(event string, handler func(ev js.Value)) Node {
@@ -91,10 +106,43 @@ func (f *Funcs) On(event string, handler func(ev js.Value)) Node {
 	return optFunc(func(el js.Value) { el.Call("addEventListener", event, jf) })
 }
 
+// OnTarget adds a listener to something that is not the element being built —
+// window or document — and arranges for Release to REMOVE it as well as free
+// it.
+//
+// The removal is the point. A listener on an element dies with the element, so
+// releasing the callback is enough; window outlives every pane, so a listener
+// left on it is called after Release freed its callback, and calling a released
+// js.Func panics. A wasm panic is not a broken feature, it is a blank page.
+func (f *Funcs) OnTarget(target js.Value, event string, handler func(ev js.Value)) {
+	if !target.Truthy() {
+		return
+	}
+	jf := js.FuncOf(func(_ js.Value, args []js.Value) any {
+		var ev js.Value
+		if len(args) > 0 {
+			ev = args[0]
+		}
+		handler(ev)
+		return nil
+	})
+	f.fns = append(f.fns, jf)
+	f.detach = append(f.detach, func() {
+		target.Call("removeEventListener", event, jf)
+	})
+	target.Call("addEventListener", event, jf)
+}
+
 // Release frees every callback added through f. Not calling it leaks the Go
 // closures for the life of the page, since the DOM holds references the Go
 // runtime cannot see.
 func (f *Funcs) Release() {
+	// Detach BEFORE freeing: a listener still attached to window when its
+	// callback is released is a panic waiting for the next event.
+	for _, fn := range f.detach {
+		fn()
+	}
+	f.detach = nil
 	for _, jf := range f.fns {
 		jf.Release()
 	}

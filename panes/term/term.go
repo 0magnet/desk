@@ -22,16 +22,25 @@ import (
 
 var (
 	fsOnce   sync.Once
-	sharedFS afero.Fs
+	sharedFS = &switchFs{}
 )
 
 // FS is the filesystem every pane shares. It is seeded on first use.
+//
+// What comes back is a STABLE VALUE whose backing can be replaced later, and
+// that indirection is the whole reason the host filesystem can arrive late.
+// Every consumer takes an afero.Fs once and keeps it — websh stores it in its
+// session, the file manager in its pane, the viewer in a package variable — so
+// swapping the variable here would reach none of them, and under --auth the
+// filesystem is not known until somebody types a token into a terminal. One
+// pointer indirection turns "restart the page" into "carry on".
 func FS() afero.Fs {
 	fsOnce.Do(func() {
-		sharedFS = afero.NewMemMapFs()
-		if err := shell.Seed(sharedFS); err != nil {
+		m := afero.NewMemMapFs()
+		if err := shell.Seed(m); err != nil {
 			js.Global().Get("console").Call("warn", "term: seed failed: "+err.Error())
 		}
+		sharedFS.swap(m)
 	})
 	return sharedFS
 }
@@ -50,7 +59,28 @@ func FS() afero.Fs {
 // Calling it after the filesystem is in use does nothing, so the choice is made
 // once, at startup, by whoever composed the desk.
 func SetFS(f afero.Fs) {
-	fsOnce.Do(func() { sharedFS = f })
+	fsOnce.Do(func() { sharedFS.swap(f) })
+}
+
+// SwapFS replaces the shared filesystem AFTER panes are already using it, and
+// every one of them sees the change, because what they hold is the switch
+// rather than the filesystem behind it.
+//
+// This is for the case SetFS cannot cover: with --auth the server does not put
+// its token in the page, so at load there is nothing to build a host filesystem
+// from and the desk starts on memory. The token is typed into a terminal some
+// seconds later, and without this the shell and the file manager would go on
+// showing the in-memory filesystem until the page was reloaded — having just
+// been told the shell was connected, which reads as the token not working.
+//
+// The seeded example files go with the swap, and should: they are what an empty
+// filesystem in a tab starts with, and this is no longer that.
+func SwapFS(f afero.Fs) {
+	// Marks the seeding done WITHOUT doing it, so a later first call to FS()
+	// cannot scatter websh's example files across somebody's home directory.
+	fsOnce.Do(func() {})
+	sharedFS.swap(f)
+	notifyFSChanged()
 }
 
 // Pane is a terminal running a shell.

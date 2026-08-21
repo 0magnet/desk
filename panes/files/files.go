@@ -100,9 +100,20 @@ func (p *Pane) Mount(el js.Value) error {
 		dom.Child(p.menu))
 
 	el.Call("appendChild", p.root)
-	// Any click that is not on the menu closes it.
-	js.Global().Get("document").Call("addEventListener", "click",
-		js.FuncOf(func(js.Value, []js.Value) any { p.hideMenu(); return nil }))
+	// Any click that is not on the menu closes it. Through OnTarget so that
+	// closing the pane takes the listener off document with it — this used to
+	// be a raw js.FuncOf that Release never saw, so every file manager ever
+	// opened went on hiding the menu of a pane that no longer existed.
+	p.fns.OnTarget(js.Global().Get("document"), "click", func(js.Value) { p.hideMenu() })
+
+	// The shared filesystem can be REPLACED under a pane that is already
+	// listing a directory: with --auth the token arrives after the page is
+	// running, and the desk swaps memory for the machine the moment it does.
+	// Nothing about this listing changes on its own, so without this the
+	// window keeps showing the in-memory filesystem and looks like the token
+	// did not work.
+	p.fns.OnTarget(js.Global(), dom.FSChangedEvent, func(js.Value) { p.render() })
+
 	p.render()
 	return nil
 }

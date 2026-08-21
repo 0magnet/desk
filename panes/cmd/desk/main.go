@@ -8,11 +8,8 @@ import (
 	"strings"
 	"syscall/js"
 
-	"github.com/0magnet/afero"
-
 	"github.com/0magnet/desk"
 	"github.com/0magnet/desk/panes/files"
-	"github.com/0magnet/desk/panes/hostfs"
 	"github.com/0magnet/desk/panes/hostterm"
 	"github.com/0magnet/desk/panes/term"
 	"github.com/0magnet/desk/panes/viewer"
@@ -37,15 +34,10 @@ func main() {
 	// the tab; only the files it reads and writes stop being imaginary.
 	//
 	// Nothing below this line knows which filesystem it got.
-	// /bin is kept synthetic. websh's PopulateBin writes a stub for every
-	// applet so `ls /bin` shows the command set, which is right for a
-	// filesystem in a tab and would otherwise mean the first thing this did
-	// with a real home directory is scatter fifty empty files into it.
-	if hf, ok := hostfs.New(); ok {
-		term.SetFS(hostfs.Mount(hf, map[string]afero.Fs{
-			"/bin": afero.NewMemMapFs(),
-		}))
-	}
+	// The machine's filesystem, if this page was served with one — and if it
+	// was served with --auth, whenever the token is typed in, since then there
+	// is nothing to build it from until somebody supplies one.
+	term.UseHostFS()
 
 	desk.Register(desk.App{
 		Name:      "term",

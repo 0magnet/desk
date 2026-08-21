@@ -61,6 +61,27 @@ type Fs struct {
 	token string
 }
 
+// Compose returns the host filesystem as a desk should actually mount it, or
+// false when the page was served without one.
+//
+// /BIN STAYS SYNTHETIC. websh's shell calls PopulateBin on startup, writing a
+// stub file per applet so that `ls /bin` shows the command set — right for a
+// filesystem that lives in a tab, and exactly wrong for the machine's: pointed
+// at a home directory, the first thing the desk would do is scatter fifty empty
+// files into it.
+//
+// This lives here rather than in each desk because it was previously two
+// identical copies, one in cmd/desk and one in chaosrack, each carrying its own
+// copy of the paragraph above. A rule about what a host filesystem must not
+// write to somebody's disk should have one home.
+func Compose() (afero.Fs, bool) {
+	hf, ok := New()
+	if !ok {
+		return nil, false
+	}
+	return Mount(hf, map[string]afero.Fs{"/bin": afero.NewMemMapFs()}), true
+}
+
 // New returns the host filesystem, or false when the page was served without
 // one. Absent is the ordinary case — a static host, or desk-serve without the
 // flag — and callers are expected to fall back to the in-memory filesystem

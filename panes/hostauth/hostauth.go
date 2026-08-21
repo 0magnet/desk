@@ -57,7 +57,33 @@ func Token() string {
 
 // Remember stores a token supplied by the person, for the rest of the tab's
 // life, so the next window does not have to ask for it again.
-func Remember(t string) { remember(t) }
+func Remember(t string) {
+	remember(t)
+	notify(t)
+}
+
+// listeners are told when the tab's token changes, so that a part of the desk
+// which was built before the token arrived can rebuild itself.
+//
+// It exists because --auth makes the token LATE: it is typed into a terminal
+// well after the page loaded, and the filesystem behind the shell and the file
+// manager was composed at load, when there was nothing to compose it from.
+//
+// No lock. This is a wasm tab: everything here runs on the one JavaScript
+// thread, and the callbacks are registered while the desk is being built,
+// before any of them can fire.
+var listeners []func(token string)
+
+// OnToken registers a callback for the token changing, and fires it for every
+// later change — an empty token meaning it was withdrawn, which is what a
+// refusal does before asking again.
+func OnToken(fn func(token string)) { listeners = append(listeners, fn) }
+
+func notify(t string) {
+	for _, fn := range listeners {
+		fn(t)
+	}
+}
 
 // Required reports whether the server is serving an agent that wants a token
 // supplied, which is what lets a pane say so instead of looking broken.
@@ -71,6 +97,11 @@ func Forget() {
 	if s := session(); s.Truthy() {
 		s.Call("removeItem", storeKey)
 	}
+	// Told as an empty token, so that anything built on the old one can go back
+	// to what it was doing before. A refused token is not a neutral state: the
+	// filesystem behind it answers 403 to everything, and a file manager left
+	// pointed at it looks broken rather than unauthorized.
+	notify("")
 }
 
 func session() js.Value { return js.Global().Get("sessionStorage") }
