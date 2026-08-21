@@ -21,7 +21,7 @@ require (
 
 require (
 	github.com/0magnet/u-root v0.16.1-0.20260814161052-156e0b67262b // indirect
-	github.com/0magnet/winbox-go v0.0.0-20260817001000-977b90918c97 // indirect
+	github.com/0magnet/winbox-go v0.0.0-20260819232003-5105b3373be4 // indirect
 	github.com/0magnet/xterm-go v0.0.0-20260817124232-e65805e044b1 // indirect
 	github.com/benhoyt/goawk v1.31.0 // indirect
 	github.com/dustin/go-humanize v1.0.1 // indirect
