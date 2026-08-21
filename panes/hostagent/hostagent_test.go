@@ -3,6 +3,7 @@
 package hostagent
 
 import (
+	"encoding/base64"
 	"encoding/json"
 	"io"
 	"net/http/httptest"
@@ -320,6 +321,73 @@ func TestUnreadableFramesDoNotDropTheShell(t *testing.T) {
 	send(t, ws, hostproto.Msg{T: hostproto.TypeInput, D: "echo ALI''VE\n"})
 	r := newReader(ws)
 	r.wait(t, "ALIVE")
+}
+
+func TestBinaryInputIsDecoded(t *testing.T) {
+	srv, cfg := agent(t)
+	ws, err := dial(t, srv, cfg.Token, srv.URL)
+	if err != nil {
+		t.Fatalf("dial: %v", err)
+	}
+	defer ws.Close() //nolint:errcheck
+
+	// The branch that exists for mouse reports, which are bytes and not
+	// characters. Exercised with something whose arrival is observable.
+	send(t, ws, hostproto.Msg{
+		T: hostproto.TypeBinary,
+		D: base64.StdEncoding.EncodeToString([]byte("echo B''IN\n")),
+	})
+	r := newReader(ws)
+	r.wait(t, "BIN")
+}
+
+func TestUndecodableBinaryDoesNotDropTheShell(t *testing.T) {
+	srv, cfg := agent(t)
+	ws, err := dial(t, srv, cfg.Token, srv.URL)
+	if err != nil {
+		t.Fatalf("dial: %v", err)
+	}
+	defer ws.Close() //nolint:errcheck
+
+	send(t, ws, hostproto.Msg{T: hostproto.TypeBinary, D: "not!valid!base64"})
+	send(t, ws, hostproto.Msg{T: hostproto.TypeInput, D: "echo ALI''VE\n"})
+	r := newReader(ws)
+	r.wait(t, "ALIVE")
+}
+
+func TestGridComesFromTheHandshake(t *testing.T) {
+	// The size has to be known before the shell exists, because a shell
+	// reads it once — when it draws its first prompt. This is the same
+	// property TestInitialSizeIsSetBeforeTheFirstPrompt asserts on the
+	// session, checked through the transport that has to carry it.
+	srv, cfg := agent(t)
+	u := wsURL(srv, cfg.Token) + "&" + hostproto.ColsParam + "=120&" + hostproto.RowsParam + "=45"
+	ws, err := websocket.Dial(u, "", srv.URL)
+	if err != nil {
+		t.Fatalf("dial: %v", err)
+	}
+	defer ws.Close() //nolint:errcheck
+
+	send(t, ws, hostproto.Msg{T: hostproto.TypeInput, D: "stty size\n"})
+	r := newReader(ws)
+	got := r.wait(t, "45 120")
+	if strings.Contains(got, "24 80") {
+		t.Errorf("the default grid was used instead of the requested one:\n%s", got)
+	}
+}
+
+func TestAbsurdGridOnTheHandshakeFallsBackToTheDefault(t *testing.T) {
+	srv, cfg := agent(t)
+	u := wsURL(srv, cfg.Token) + "&" + hostproto.ColsParam + "=99999&" + hostproto.RowsParam + "=-3"
+	ws, err := websocket.Dial(u, "", srv.URL)
+	if err != nil {
+		t.Fatalf("dial: %v", err)
+	}
+	defer ws.Close() //nolint:errcheck
+
+	send(t, ws, hostproto.Msg{T: hostproto.TypeInput, D: "stty size\n"})
+	r := newReader(ws)
+	r.wait(t, "24 80")
 }
 
 func send(t *testing.T, ws *websocket.Conn, m hostproto.Msg) {

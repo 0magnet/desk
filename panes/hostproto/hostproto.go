@@ -34,6 +34,17 @@ const (
 	// the pty as a TIOCSWINSZ, which is what makes a full-screen program
 	// redraw and what makes $COLUMNS right.
 	TypeResize = "r"
+
+	// TypeBinary carries input that is not text, base64-encoded in D.
+	//
+	// It exists for one real case: a terminal in mouse-reporting mode
+	// answers with byte values above 127, and the X10 encoding in
+	// particular is bytes and not characters. Those cannot ride in D as a
+	// string — JSON demands valid UTF-8 and encoding/json substitutes
+	// U+FFFD for what is not, so a click near the right edge of a wide
+	// window would arrive as a different column, silently. Base64 costs a
+	// third more bytes on a path that carries a few bytes per click.
+	TypeBinary = "b"
 )
 
 // Msg is one client-to-server message.
@@ -70,6 +81,15 @@ type Msg struct {
 // URLs, which is survivable for a value that lives as long as one process and
 // is never written to disk.
 const TokenParam = "token"
+
+// ColsParam and RowsParam carry the initial grid on the handshake.
+//
+// On the URL rather than as a first message because the size is needed before
+// the shell exists, not after: it is an argument to starting one.
+const (
+	ColsParam = "cols"
+	RowsParam = "rows"
+)
 
 // Path is where the agent serves the pty endpoint.
 const Path = "/host/pty"

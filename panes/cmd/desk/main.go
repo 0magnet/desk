@@ -9,6 +9,7 @@ import (
 
 	"github.com/0magnet/desk"
 	"github.com/0magnet/desk/panes/files"
+	"github.com/0magnet/desk/panes/hostterm"
 	"github.com/0magnet/desk/panes/term"
 	"github.com/0magnet/desk/panes/viewer"
 )
@@ -33,6 +34,20 @@ func main() {
 		Height:    460,
 		Open: func([]string) (desk.Pane, error) {
 			return term.New(greeting, "desk"), nil
+		},
+	})
+	// Registered whether or not an agent is there to talk to. Hiding it when
+	// the page was served without --shell would mean the one way to find out
+	// this exists is to already know: opening it and being told, in the
+	// terminal, which flag turns it on is the discoverable version.
+	desk.Register(desk.App{
+		Name:   "host",
+		Title:  "host shell",
+		Help:   "a real shell on this machine (needs desk-serve --shell)",
+		Width:  760,
+		Height: 460,
+		Open: func([]string) (desk.Pane, error) {
+			return hostterm.New(), nil
 		},
 	})
 	desk.Register(desk.App{

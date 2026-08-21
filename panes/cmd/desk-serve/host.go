@@ -9,6 +9,7 @@ import (
 	"io/fs"
 	"net"
 	"net/http"
+	"path"
 
 	"github.com/0magnet/desk/panes/hostagent"
 	"github.com/0magnet/desk/panes/hostproto"
@@ -34,10 +35,6 @@ type hostConfig struct {
 // anything else — with no agent, the global is simply absent and the pane says
 // so, which is exactly what should happen on GitHub Pages.
 func injectHostConfig(assets fs.FS, next http.Handler, cfg hostConfig) (http.Handler, error) {
-	page, err := fs.ReadFile(assets, "index.html")
-	if err != nil {
-		return nil, fmt.Errorf("reading the embedded page: %w", err)
-	}
 	blob, err := json.Marshal(cfg)
 	if err != nil {
 		return nil, fmt.Errorf("encoding the host config: %w", err)
@@ -47,24 +44,53 @@ func injectHostConfig(assets fs.FS, next http.Handler, cfg hostConfig) (http.Han
 	// string concatenation is a habit worth not having.
 	tag := []byte("<script>window.__deskHost=" + string(blob) + ";</script>\n")
 
-	marker := []byte("</head>")
-	i := bytes.Index(page, marker)
-	if i < 0 {
-		return nil, fmt.Errorf("the embedded page has no </head> to inject into")
+	// EVERY page, not just the top one. docs/ carries two builds — TinyGo at
+	// the root and standard Go under go/ — and they exist precisely so that
+	// one can be checked against the other when something misbehaves. A token
+	// that reached only the first would make the host shell look like the
+	// thing TinyGo had miscompiled.
+	pages := map[string][]byte{}
+	err = fs.WalkDir(assets, ".", func(p string, d fs.DirEntry, err error) error {
+		if err != nil || d.IsDir() || path.Base(p) != "index.html" {
+			return err
+		}
+		body, err := fs.ReadFile(assets, p)
+		if err != nil {
+			return err
+		}
+		i := bytes.Index(body, []byte("</head>"))
+		if i < 0 {
+			return nil // not a page shaped like ours; serve it untouched
+		}
+		out := make([]byte, 0, len(body)+len(tag))
+		out = append(out, body[:i]...)
+		out = append(out, tag...)
+		out = append(out, body[i:]...)
+
+		dir := "/" + path.Dir(p) + "/"
+		if p == "index.html" {
+			dir = "/"
+		}
+		pages[dir] = out
+		pages[dir+"index.html"] = out
+		return nil
+	})
+	if err != nil {
+		return nil, fmt.Errorf("reading the embedded pages: %w", err)
 	}
-	injected := make([]byte, 0, len(page)+len(tag))
-	injected = append(injected, page[:i]...)
-	injected = append(injected, tag...)
-	injected = append(injected, page[i:]...)
+	if len(pages) == 0 {
+		return nil, fmt.Errorf("no embedded page had a </head> to inject into")
+	}
 
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if r.URL.Path != "/" && r.URL.Path != "/index.html" {
+		body, ok := pages[r.URL.Path]
+		if !ok {
 			next.ServeHTTP(w, r)
 			return
 		}
 		w.Header().Set("Content-Type", "text/html; charset=utf-8")
 		w.Header().Set("Cache-Control", "no-store")
-		_, _ = w.Write(injected) //nolint:errcheck // the client hung up; there is no second channel to say so on
+		_, _ = w.Write(body) //nolint:errcheck // the client hung up; there is no second channel to say so on
 	}), nil
 }
 

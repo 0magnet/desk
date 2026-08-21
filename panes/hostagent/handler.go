@@ -5,11 +5,13 @@ package hostagent
 import (
 	"crypto/rand"
 	"crypto/subtle"
+	"encoding/base64"
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"log"
 	"net/http"
+	"strconv"
 
 	"golang.org/x/net/websocket"
 
@@ -109,7 +111,21 @@ func (c Config) checkOrigin(r *http.Request) error {
 func (c Config) serve(ws *websocket.Conn) {
 	defer ws.Close() //nolint:errcheck // nothing useful to do with it
 
-	s, err := Start(c.Session)
+	// The grid is taken from the handshake rather than left to an immediate
+	// resize, because a shell reads the window size once, when it draws its
+	// first prompt. Connecting at 80x24 and correcting a frame later leaves a
+	// prompt wrapped at the wrong width that nothing will redraw.
+	sess := c.Session
+	if q := ws.Request().URL.Query(); q != nil {
+		if n, err := strconv.Atoi(q.Get(hostproto.ColsParam)); err == nil && n > 0 && n <= maxGrid {
+			sess.Cols = n
+		}
+		if n, err := strconv.Atoi(q.Get(hostproto.RowsParam)); err == nil && n > 0 && n <= maxGrid {
+			sess.Rows = n
+		}
+	}
+
+	s, err := Start(sess)
 	if err != nil {
 		log.Printf("desk: %v", err)
 		// Reported into the terminal rather than only to the log, because
@@ -152,6 +168,14 @@ func (c Config) serve(ws *websocket.Conn) {
 		switch m.T {
 		case hostproto.TypeInput:
 			if _, err := s.Write([]byte(m.D)); err != nil {
+				return
+			}
+		case hostproto.TypeBinary:
+			raw, err := base64.StdEncoding.DecodeString(m.D)
+			if err != nil {
+				continue // as with unparseable JSON: not worth a shell
+			}
+			if _, err := s.Write(raw); err != nil {
 				return
 			}
 		case hostproto.TypeResize:
