@@ -101,6 +101,43 @@ func TestHidingAWindowIsOneReversibleProperty(t *testing.T) {
 	}
 }
 
+// TestCompositingHidesTheBodyAndLeavesTheFrame is a regression guard for a bug
+// that only a browser showed: hiding the whole window left a terminal floating
+// with no title bar, no close button and no border.
+//
+// The compositor draws a pane's canvas at the content box. The frame around it
+// — the title, the buttons, the border — is DOM, and DOM is precisely what
+// cannot be sampled into a texture, so hiding it removes chrome that nothing
+// then redraws. What the compositor took over is the pane; the window was never
+// its business.
+func TestCompositingHidesTheBodyAndLeavesTheFrame(t *testing.T) {
+	doc := js.Global().Get("document")
+	if !doc.Truthy() {
+		t.Skip("no document")
+	}
+	el := doc.Call("createElement", "div")
+	body := doc.Call("createElement", "div")
+	body.Set("className", "wb-body")
+	el.Call("appendChild", body)
+
+	win := fakeWindow(t, 0, 0, 400, 300)
+	win.DOM = el
+	lw := &liveWindow{id: "w1", win: win}
+
+	lw.hide()
+	if got := body.Get("style").Get("opacity").String(); got != "0" {
+		t.Errorf("the body was not hidden: opacity = %q", got)
+	}
+	if got := el.Get("style").Get("opacity").String(); got != "" {
+		t.Errorf("the frame was hidden too: opacity = %q — the title bar would vanish", got)
+	}
+
+	lw.show()
+	if got := body.Get("style").Get("opacity").String(); got != "" {
+		t.Errorf("the body stayed hidden: opacity = %q", got)
+	}
+}
+
 // A window that closes while it is being composited must not take its opacity
 // with it: whatever else holds the element — an animation, a screenshot — would
 // be holding an invisible one.

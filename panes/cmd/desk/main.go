@@ -5,6 +5,7 @@
 package main
 
 import (
+	"strings"
 	"syscall/js"
 
 	"github.com/0magnet/afero"
@@ -87,6 +88,16 @@ func main() {
 	})
 	viewer.Register(term.FS())
 	registerLauncherApplets()
+
+	// Compositing is opt-in and reachable, rather than opt-in and unreachable.
+	// It draws every window that is a canvas into one WebGL layer, and a
+	// feature nothing can switch on is a feature nobody finds a bug in.
+	if js.Global().Get("location").Get("search").String() != "" &&
+		strings.Contains(js.Global().Get("location").Get("search").String(), "gl=1") {
+		if err := desk.EnableCompositing(); err != nil {
+			js.Global().Get("console").Call("warn", "desk: compositing unavailable: "+err.Error())
+		}
+	}
 
 	desk.NewPanel()
 

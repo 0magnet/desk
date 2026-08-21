@@ -44,11 +44,11 @@ const (
 	glOneMinusSrcAlpha = 0x0303
 )
 
-// One program draws everything. A window is a solid quad, a title bar is a
-// solid quad, and a pane is the same quad with a texture on it, so the only
-// thing that varies is where the color comes from — u_textured picks. Two
-// programs and a program switch per quad would buy nothing at a dozen quads a
-// frame.
+// One program draws everything. Today that is only textured pane quads — the
+// window chrome stays DOM, because a quad cannot carry a title or a close
+// button — but u_textured keeps the untextured branch, since a shader whose
+// uniform is never exercised is one that breaks quietly for whoever adds the
+// next draw call.
 //
 // The vertex buffer is a unit quad and never changes: the rectangle arrives as
 // a uniform in clip space, already converted by clipRect, which is why that
@@ -83,15 +83,6 @@ out vec4 outColor;
 void main() {
   outColor = u_textured ? texture(u_tex, v_uv) : u_color;
 }`
-
-// The chrome colors. They match the DOM window they stand in for closely enough
-// that switching compositing on does not restyle the desk — the background is
-// the same #1b1f27 LaunchOpts gives winbox.
-var (
-	colorBody       = [4]float32{0.106, 0.122, 0.153, 1} // #1b1f27
-	colorTitle      = [4]float32{0.137, 0.161, 0.212, 1} // #232936
-	colorTitleFocus = [4]float32{0.184, 0.224, 0.286, 1} // #2f3949
-)
 
 // liveWindow is a launched window, tracked whether or not compositing is on.
 //
@@ -157,9 +148,35 @@ func (lw *liveWindow) show() {
 		return
 	}
 	lw.hidden = false
-	if lw.win != nil && lw.win.DOM.Truthy() {
-		lw.win.DOM.Get("style").Set("opacity", "")
+	if el := lw.hideTarget(); el.Truthy() {
+		el.Get("style").Set("opacity", "")
 	}
+}
+
+// hideTarget is the element the compositor makes invisible, and it is the
+// window's BODY rather than the window.
+//
+// This was the whole window at first, and in a browser the result was a
+// terminal floating with no title bar, no close button and no border: the
+// compositor draws a pane's canvas at the content box, so hiding the frame
+// hides chrome that nothing then redraws. The frame is DOM — a title, some
+// buttons, a border — and DOM is exactly what cannot be sampled into a
+// texture, so drawing it was never on the table.
+//
+// Hiding only the body is also the more honest split. What the compositor took
+// over is the pane; the window around it was never its business.
+func (lw *liveWindow) hideTarget() js.Value {
+	if lw.win == nil || !lw.win.DOM.Truthy() {
+		return js.Value{}
+	}
+	// Checked rather than assumed, because DOM is whatever the caller put
+	// there — winbox's element in a browser, and a plain object in a test.
+	if qs := lw.win.DOM.Get("querySelector"); qs.Type() == js.TypeFunction {
+		if body := lw.win.DOM.Call("querySelector", ".wb-body"); body.Truthy() {
+			return body
+		}
+	}
+	return lw.win.DOM
 }
 
 // hide makes the DOM window invisible without taking it out of the page.
@@ -174,8 +191,8 @@ func (lw *liveWindow) hide() {
 		return
 	}
 	lw.hidden = true
-	if lw.win != nil && lw.win.DOM.Truthy() {
-		lw.win.DOM.Get("style").Set("opacity", "0")
+	if el := lw.hideTarget(); el.Truthy() {
+		el.Get("style").Set("opacity", "0")
 	}
 }
 
@@ -388,12 +405,20 @@ func (c *compositor) frame() {
 		if lw == nil {
 			continue
 		}
-		c.solid(d.Frame, colorBody)
-		title := colorTitle
-		if d.Focused {
-			title = colorTitleFocus
-		}
-		c.solid(d.Title, title)
+		// THE CHROME IS NOT DRAWN HERE, and this is the correction a browser
+		// forced. Painting the frame and title as flat quads and hiding the
+		// whole DOM window produced a terminal with a blank bar where its
+		// title had been and no close button at all: a rectangle of color
+		// cannot carry the title text, the icons, or the focus affordances
+		// that winbox's stylesheet gives them for free.
+		//
+		// So the split is by what each layer can actually represent. The pane
+		// is pixels and becomes a texture; the chrome is text and controls and
+		// stays DOM, which also keeps it hit-testing without the compositor
+		// reimplementing any of it. Only the body is hidden — see hideTarget.
+		//
+		// d.Frame and d.Title stay in the plan. They are geometry, and the
+		// arithmetic that produces them is what the planner is tested on.
 		if !c.textured(d.ID, d.Body, canvases[d.ID]) {
 			// The texture could not be uploaded after all. Leaving the window
 			// on the DOM for this frame shows the pane over the chrome quad
@@ -476,18 +501,10 @@ func (c *compositor) resize(view rect) {
 	c.gl.Call("viewport", 0, 0, w, h)
 }
 
-// solid draws one flat quad.
-func (c *compositor) solid(r rect, col [4]float32) {
-	if r.empty() {
-		return
-	}
-	q := clipRect(r, c.cssW, c.cssH)
-	gl := c.gl
-	gl.Call("uniform4f", c.uClip, float64(q[0]), float64(q[1]), float64(q[2]), float64(q[3]))
-	gl.Call("uniform4f", c.uColor, float64(col[0]), float64(col[1]), float64(col[2]), float64(col[3]))
-	gl.Call("uniform1i", c.uTextured, 0)
-	gl.Call("drawArrays", glTriangleStrip, 0, 4)
-}
+// There is no solid-quad path any more. It drew the window chrome, which the
+// DOM draws better — with text and buttons — and the shader keeps its untextured
+// branch only because a uniform that is never set is a uniform that bites the
+// next person to add a draw call.
 
 // textured uploads a pane's canvas and draws it, and reports whether it got
 // that far. The upload is unconditional and every frame: a terminal's canvas
