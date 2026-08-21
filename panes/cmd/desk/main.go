@@ -92,9 +92,17 @@ func main() {
 	// Compositing is opt-in and reachable, rather than opt-in and unreachable.
 	// It draws every window that is a canvas into one WebGL layer, and a
 	// feature nothing can switch on is a feature nobody finds a bug in.
-	if js.Global().Get("location").Get("search").String() != "" &&
-		strings.Contains(js.Global().Get("location").Get("search").String(), "gl=1") {
-		if err := desk.EnableCompositing(); err != nil {
+	//
+	//	?gl=1      composite the panes, leaving the frames on the DOM
+	//	?chrome=1  composite the frames too, which is what something
+	//	           sampling the canvas as a texture needs
+	//
+	// chrome=1 implies gl=1: drawing frames into a canvas nothing composites
+	// into would be drawing them nowhere.
+	search := js.Global().Get("location").Get("search").String()
+	wantChrome := strings.Contains(search, "chrome=1")
+	if strings.Contains(search, "gl=1") || wantChrome {
+		if err := desk.EnableCompositingOpts(desk.CompositingOptions{DrawChrome: wantChrome}); err != nil {
 			js.Global().Get("console").Call("warn", "desk: compositing unavailable: "+err.Error())
 		}
 	}

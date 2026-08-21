@@ -132,6 +132,8 @@ func untrackWindow(lw *liveWindow) {
 	lw.show()
 	if c != nil {
 		c.dropTexture(lw.id)
+		c.dropTexture(lw.id + ":chrome")
+		c.dropChrome(lw.id)
 	}
 }
 
@@ -169,6 +171,15 @@ func (lw *liveWindow) hideTarget() js.Value {
 	if lw.win == nil || !lw.win.DOM.Truthy() {
 		return js.Value{}
 	}
+	// With the chrome drawn into the canvas, the WHOLE window is redundant on
+	// the DOM and hiding only the body would leave a real title bar sitting on
+	// top of a drawn one.
+	mu.Lock()
+	whole := comp != nil && comp.drawChrome
+	mu.Unlock()
+	if whole {
+		return lw.win.DOM
+	}
 	// Checked rather than assumed, because DOM is whatever the caller put
 	// there — winbox's element in a browser, and a plain object in a test.
 	if qs := lw.win.DOM.Get("querySelector"); qs.Type() == js.TypeFunction {
@@ -205,6 +216,12 @@ type compositor struct {
 	uClip, uColor, uTextured, uTex js.Value
 
 	textures map[string]js.Value
+	chrome   map[string]chromeCache
+
+	// drawChrome redraws window frames into the canvas instead of leaving
+	// them to the DOM. See chrome_js.go: it exists so the canvas can be a
+	// complete picture of the desk, which is what a caller texturing it needs.
+	drawChrome bool
 
 	cssW, cssH float64
 	dpr        float64
@@ -227,9 +244,47 @@ var (
 // It is off by default and every caller may ignore the error: failing here
 // leaves the desk exactly as it was, which is a working DOM desktop. There is
 // nothing to undo because nothing has been changed yet.
-func EnableCompositing() error {
+// CompositingOptions tunes what the compositor takes over.
+type CompositingOptions struct {
+	// DrawChrome redraws window frames into the GL canvas — see chrome_js.go.
+	//
+	// Off by default, and that default is the right one for a desk on a page:
+	// the DOM draws text better than a canvas will, and hiding only the pane
+	// keeps the real title bars, the real buttons and their hover states.
+	//
+	// Turn it on when the CANVAS is the product rather than the page — when
+	// something is going to sample it as a texture, where a frame left on the
+	// DOM is a frame that is simply not in the picture.
+	DrawChrome bool
+}
+
+// Canvas is the compositor's canvas, or a zero Value when compositing is off.
+//
+// It is exported for one purpose: a caller that wants to draw the desk itself,
+// by sampling this as a texture. Everything needed for that to be a complete
+// desk is behind CompositingOptions.DrawChrome.
+func Canvas() js.Value {
+	mu.Lock()
+	defer mu.Unlock()
+	if comp == nil {
+		return js.Value{}
+	}
+	return comp.canvas
+}
+
+// EnableCompositing switches the desk to the WebGL path with the defaults.
+func EnableCompositing() error { return EnableCompositingOpts(CompositingOptions{}) }
+
+// EnableCompositingOpts is EnableCompositing with the knobs.
+func EnableCompositingOpts(opt CompositingOptions) error {
 	mu.Lock()
 	already := comp != nil
+	if already {
+		// Already running: honor a change of options rather than ignoring
+		// it, since the caller that flips DrawChrome is usually the one that
+		// just decided to texture the canvas.
+		comp.drawChrome = opt.DrawChrome
+	}
 	mu.Unlock()
 	if already {
 		return nil
@@ -254,7 +309,8 @@ func EnableCompositing() error {
 		return errors.New("desk: no webgl2 context; staying on the DOM path")
 	}
 
-	c := &compositor{canvas: canvas, gl: gl, textures: map[string]js.Value{}, dpr: 1}
+	c := &compositor{canvas: canvas, gl: gl, textures: map[string]js.Value{},
+		chrome: map[string]chromeCache{}, dpr: 1}
 	if err := c.buildProgram(); err != nil {
 		return err
 	}
@@ -276,6 +332,7 @@ func EnableCompositing() error {
 	gl.Call("enable", glBlend)
 	gl.Call("blendFunc", glSrcAlpha, glOneMinusSrcAlpha)
 
+	c.drawChrome = opt.DrawChrome
 	c.running = true
 	mu.Lock()
 	comp = c
@@ -374,6 +431,7 @@ func (c *compositor) frame() {
 	live := liveWindows()
 	states := make([]winState, 0, len(live))
 	canvases := make(map[string]js.Value, len(live))
+	titles := make(map[string]string, len(live))
 	byID := make(map[string]*liveWindow, len(live))
 	for _, lw := range live {
 		st, canvas := lw.state()
@@ -381,6 +439,9 @@ func (c *compositor) frame() {
 		byID[st.ID] = lw
 		if canvas.Truthy() {
 			canvases[st.ID] = canvas
+		}
+		if c.drawChrome {
+			titles[st.ID] = lw.title()
 		}
 	}
 
@@ -405,20 +466,23 @@ func (c *compositor) frame() {
 		if lw == nil {
 			continue
 		}
-		// THE CHROME IS NOT DRAWN HERE, and this is the correction a browser
-		// forced. Painting the frame and title as flat quads and hiding the
-		// whole DOM window produced a terminal with a blank bar where its
-		// title had been and no close button at all: a rectangle of color
-		// cannot carry the title text, the icons, or the focus affordances
-		// that winbox's stylesheet gives them for free.
+		// THE CHROME. By default it is not drawn: the pane is pixels and
+		// becomes a texture, the frame is text and controls and stays DOM,
+		// which keeps real title bars and keeps them hit-testing. Painting it
+		// as flat quads was the first attempt and it produced a terminal with
+		// a blank bar where its title had been — a rectangle of color cannot
+		// carry text.
 		//
-		// So the split is by what each layer can actually represent. The pane
-		// is pixels and becomes a texture; the chrome is text and controls and
-		// stays DOM, which also keeps it hit-testing without the compositor
-		// reimplementing any of it. Only the body is hidden — see hideTarget.
-		//
-		// d.Frame and d.Title stay in the plan. They are geometry, and the
-		// arithmetic that produces them is what the planner is tested on.
+		// With DrawChrome it IS drawn, because a caller sampling this canvas
+		// needs the frames to be in it, and it is drawn properly: a flat quad
+		// for the background, and a title bar RASTERIZED with Canvas2D — text,
+		// buttons and all — in chrome_js.go.
+		if c.drawChrome {
+			c.solid(d.Frame, colorBody)
+			if bar := c.chromeFor(d.ID, titles[d.ID], d.Focused, d.Title); bar.Truthy() {
+				c.textured(d.ID+":chrome", d.Title, bar)
+			}
+		}
 		if !c.textured(d.ID, d.Body, canvases[d.ID]) {
 			// The texture could not be uploaded after all. Leaving the window
 			// on the DOM for this frame shows the pane over the chrome quad
@@ -501,10 +565,27 @@ func (c *compositor) resize(view rect) {
 	c.gl.Call("viewport", 0, 0, w, h)
 }
 
-// There is no solid-quad path any more. It drew the window chrome, which the
-// DOM draws better — with text and buttons — and the shader keeps its untextured
-// branch only because a uniform that is never set is a uniform that bites the
-// next person to add a draw call.
+// solid draws one flat quad.
+//
+// It came back for DrawChrome, and for a narrower job than it had before: the
+// window's own background, underneath a title bar that is rasterized and a pane
+// that is a texture. A flat quad was never able to stand in for chrome — that
+// was the bug — but it is exactly right for the color behind one.
+func (c *compositor) solid(r rect, col [4]float32) {
+	if r.empty() {
+		return
+	}
+	q := clipRect(r, c.cssW, c.cssH)
+	gl := c.gl
+	gl.Call("uniform4f", c.uClip, float64(q[0]), float64(q[1]), float64(q[2]), float64(q[3]))
+	gl.Call("uniform4f", c.uColor, float64(col[0]), float64(col[1]), float64(col[2]), float64(col[3]))
+	gl.Call("uniform1i", c.uTextured, 0)
+	gl.Call("drawArrays", glTriangleStrip, 0, 4)
+}
+
+// colorBody is the window background drawn under the chrome, matching the
+// #1b1f27 LaunchOpts gives winbox.
+var colorBody = [4]float32{0.106, 0.122, 0.153, 1}
 
 // textured uploads a pane's canvas and draws it, and reports whether it got
 // that far. The upload is unconditional and every frame: a terminal's canvas

@@ -355,3 +355,21 @@ func cascade(availW, availH float64) (float64, float64) {
 	cascadeN++
 	return float64(60 + n*step), float64(50 + n*step)
 }
+
+// title is the window's title text, read back from its own chrome.
+//
+// Read rather than remembered because winbox owns it: SetTitle changes the DOM
+// and nothing tells the desk. The compositor only asks when it is drawing the
+// chrome itself, which is not every frame and not at all by default.
+func (lw *liveWindow) title() string {
+	if lw.win == nil || !lw.win.DOM.Truthy() {
+		return ""
+	}
+	if lw.win.DOM.Get("querySelector").Type() != js.TypeFunction {
+		return ""
+	}
+	if t := lw.win.DOM.Call("querySelector", ".wb-title"); t.Truthy() {
+		return t.Get("textContent").String()
+	}
+	return ""
+}
