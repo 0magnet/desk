@@ -223,3 +223,58 @@ func TestStateOfAWindowWithNoElement(t *testing.T) {
 		t.Error("a window with no element reads as drawable")
 	}
 }
+
+// Turning DrawChrome off while compositing is already running must not be
+// holding the package mutex when it puts the panel back.
+//
+// It used to be. EnableCompositingOpts took mu and called restorePanelDOM
+// inside it, which reaches rootElement, which takes mu again — and a Go mutex
+// is not reentrant, so the goroutine blocked against itself. On wasm that is
+// the only thread, so the page stopped dead: no panic, no console output,
+// nothing on stderr, a tab that never painted again. It fired on one transition
+// only, DrawChrome true to false with the compositor already up, which is what
+// leaving a desk drawn as a texture does — so every exit from that mode froze
+// while entering was fine.
+//
+// The assertion is TryLock rather than a call to the real thing. A test that
+// exercises the real path reproduces the deadlock instead of reporting it: it
+// hangs the suite and eventually fails on go test's ten-minute timeout, which
+// is a signal nobody wants to receive. Hooking the indirection and asking
+// whether the lock is free says the same thing in a millisecond.
+func TestPanelIsRestoredWithoutHoldingTheLock(t *testing.T) {
+	mu.Lock()
+	prev := comp
+	comp = &compositor{textures: map[string]js.Value{}}
+	mu.Unlock()
+	t.Cleanup(func() { mu.Lock(); comp = prev; mu.Unlock() })
+
+	prevRestore := restorePanel
+	t.Cleanup(func() { restorePanel = prevRestore })
+
+	called, locked := false, false
+	restorePanel = func() {
+		called = true
+		if mu.TryLock() {
+			mu.Unlock()
+		} else {
+			locked = true
+		}
+	}
+
+	if err := EnableCompositingOpts(CompositingOptions{DrawChrome: false}); err != nil {
+		t.Fatalf("EnableCompositingOpts: %v", err)
+	}
+	if !called {
+		t.Fatal("the panel was never put back, so a drawn panel would stay hidden and clickable")
+	}
+	if locked {
+		t.Error("the mutex was held while the panel was put back — the real restore takes it again and deadlocks the page")
+	}
+
+	mu.Lock()
+	chrome := comp.drawChrome
+	mu.Unlock()
+	if chrome {
+		t.Error("DrawChrome is still on after being switched off")
+	}
+}

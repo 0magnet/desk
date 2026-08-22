@@ -296,21 +296,34 @@ func EnableCompositing() error { return EnableCompositingOpts(CompositingOptions
 func EnableCompositingOpts(opt CompositingOptions) error {
 	mu.Lock()
 	already := comp != nil
+	restore := false
 	if already {
 		// Already running: honor a change of options rather than ignoring
 		// it, since the caller that flips DrawChrome is usually the one that
 		// just decided to texture the canvas.
 		comp.drawChrome = opt.DrawChrome
 		comp.background = opt.Background
-		if !opt.DrawChrome {
-			// The drawn copy is about to stop being drawn, so the real one has
-			// to come back — otherwise the desk keeps a panel that is present,
-			// clickable and invisible.
-			restorePanelDOM()
-		}
+		// The drawn copy is about to stop being drawn, so the real one has to
+		// come back — otherwise the desk keeps a panel that is present,
+		// clickable and invisible. NOTED HERE, DONE BELOW: see the unlock.
+		restore = !opt.DrawChrome
 	}
 	mu.Unlock()
 	if already {
+		// OUTSIDE THE LOCK, and it has to be. restorePanelDOM reaches
+		// rootElement, which takes this same mutex to read the root — and a Go
+		// mutex is not reentrant, so calling it from in here deadlocked the
+		// goroutine against itself. On wasm that is the ONE thread, so the page
+		// stopped: no panic, no console output, nothing on stderr, just a tab
+		// that never paints again.
+		//
+		// It fired on exactly one transition — DrawChrome true to false while
+		// compositing was already running — which is leaving a desk that was
+		// being drawn as a texture. Every way out of that mode froze; going in
+		// was fine, because that path sets DrawChrome true and never gets here.
+		if restore {
+			restorePanel()
+		}
 		return nil
 	}
 
@@ -385,6 +398,13 @@ func EnableCompositingOpts(opt CompositingOptions) error {
 // compositing was never on.
 // restorePanelDOM is called wherever the drawn copy stops being drawn.
 func restorePanelDOM() { hidePanelDOM(false) }
+
+// restorePanel is the indirection the deadlock test hooks. It exists so the
+// rule that broke here — this must not be called while the package mutex is
+// held — can be asserted in a test that FAILS rather than one that hangs: the
+// real function reaches rootElement, which takes that mutex, so a test using it
+// would reproduce the deadlock instead of reporting it.
+var restorePanel = restorePanelDOM
 
 func DisableCompositing() {
 	restorePanelDOM()
