@@ -84,6 +84,17 @@ type App struct {
 	// Open builds a pane. args are whatever Launch was given, so an app can
 	// take a filename or a mode without the desk knowing what either means.
 	Open func(args []string) (Pane, error)
+
+	// Run is an alternative to Open for an entry that is NOT a window the desk
+	// owns: it is called instead, and no pane is built and no window opened.
+	//
+	// It exists for the case of an application that is hosting the desk rather
+	// than being hosted by it — chaosrack keeps its control panel in a window
+	// of its own, so it can appear in the launcher beside real desk apps
+	// without pretending the desk created it. Set one or the other; Run wins if
+	// both are set, since an app that can do its own thing has no use for a
+	// pane the desk would wrap it in.
+	Run func(args []string) error
 }
 
 var (
@@ -150,6 +161,15 @@ func LaunchOpts(name string, opt Options, args ...string) (*winbox.WinBox, error
 	app, ok := Lookup(name)
 	if !ok {
 		return nil, fmt.Errorf("desk: no app named %q", name)
+	}
+	// An entry that runs itself. Nothing is mounted and no window is made, so
+	// there is no WinBox to hand back — the caller gets nil and no error, which
+	// is the honest answer to "which window did that open".
+	if app.Run != nil {
+		return nil, app.Run(args)
+	}
+	if app.Open == nil {
+		return nil, fmt.Errorf("desk: app %q has neither Open nor Run", name)
 	}
 	pane, err := app.Open(args)
 	if err != nil {
