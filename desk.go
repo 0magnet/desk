@@ -260,8 +260,30 @@ func LaunchOpts(name string, opt Options, args ...string) (*winbox.WinBox, error
 		alive := true
 		tracked := &Window{
 			Title: title,
-			Focus: func() { win.Restore().Focus() },
+			// Show before Restore: minimizing hides the window outright (see
+			// OnMinimize below), and restoring something still hidden is a
+			// no-op that looks like a dead button.
+			Focus: func() { win.Show().Restore().Focus() },
 			Alive: func() bool { return alive },
+		}
+
+		// A MINIMIZED WINDOW IS REPRESENTED BY ITS TASK BUTTON, which is what
+		// every paneled desktop does and what winbox on its own does not:
+		// winbox parks a minimized window as a title-bar stub along the bottom
+		// of the screen. That is the right answer for a desktop with no panel,
+		// because the stub is then the only way back — and the wrong one here,
+		// where it means the same window is on screen twice, once as a button
+		// and once as a stub sitting on top of the panel.
+		//
+		// Only inside this branch, and deliberately: with no panel there is no
+		// button, and hiding on minimize would put the window somewhere the
+		// person cannot reach it.
+		prevMin := win.OnMinimize
+		win.OnMinimize = func(wb *winbox.WinBox) {
+			if prevMin != nil {
+				prevMin(wb)
+			}
+			wb.Hide()
 		}
 		panel.Track(tracked)
 		panel.SetActive(tracked) // a window opens focused
