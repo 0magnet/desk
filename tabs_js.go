@@ -226,6 +226,23 @@ func (ts *tabset) resize() {
 	}
 }
 
+// ShowTab brings the first tab with this title to the front, reporting whether
+// it found one. Titles are how a host names its own tabs, so they are the
+// handle it already holds.
+func ShowTab(win *winbox.WinBox, title string) bool {
+	ts := tabsetFor(win)
+	if ts == nil {
+		return false
+	}
+	for i, t := range ts.tabs {
+		if t.title == title {
+			ts.activate(i)
+			return true
+		}
+	}
+	return false
+}
+
 // AddTab mounts a new pane of the named app as a tab of an existing window and
 // brings it to the front. The window must be one this package opened. It is
 // the tabbed counterpart of Launch: same app registry, same arguments.
