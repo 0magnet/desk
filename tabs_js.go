@@ -59,7 +59,16 @@ func tabsetFor(w *winbox.WinBox) *tabset {
 func newTabset(win *winbox.WinBox) *tabset {
 	doc := js.Global().Get("document")
 	body := win.Body
-	body.Get("style").Set("cssText", "position:absolute;inset:0;display:flex;flex-direction:column;overflow:hidden")
+	// Set only what the layout needs. A wholesale cssText write would destroy
+	// the geometry winbox gave the body, floating it up under the title bar so
+	// the strip lands on the drag handle and no tab can be clicked.
+	bs := body.Get("style")
+	if pos := js.Global().Call("getComputedStyle", body).Get("position").String(); pos == "" || pos == "static" {
+		bs.Set("position", "relative")
+	}
+	bs.Set("display", "flex")
+	bs.Set("flexDirection", "column")
+	bs.Set("overflow", "hidden")
 
 	strip := doc.Call("createElement", "div")
 	strip.Get("style").Set("cssText", "display:none;gap:2px;align-items:flex-end;background:#151922;"+
