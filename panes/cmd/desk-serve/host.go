@@ -9,7 +9,11 @@ import (
 	"io/fs"
 	"net"
 	"net/http"
+	"os"
+	"os/signal"
 	"path"
+	"syscall"
+	"time"
 
 	"github.com/0magnet/desk/panes/hostagent"
 	"github.com/0magnet/desk/panes/hostproto"
@@ -126,15 +130,25 @@ func servedOrigins(ln net.Listener) []string {
 // mountHostAgent adds whichever endpoints were asked for and returns the config
 // for the page. One token covers both: they are the same grant of access to the
 // same machine, and two would only suggest otherwise.
-func mountHostAgent(mux *http.ServeMux, ln net.Listener, opt hostOptions) (hostConfig, error) {
+func mountHostAgent(mux *http.ServeMux, ln net.Listener, opt hostOptions) (hostConfig, *hostagent.Registry, error) {
 	token, err := hostagent.NewToken()
 	if err != nil {
-		return hostConfig{}, err
+		return hostConfig{}, nil, err
 	}
 	agent := hostagent.Config{
 		Token:   token,
 		Origins: servedOrigins(ln),
 		Session: hostagent.SessionConfig{Shell: opt.shell},
+	}
+	if opt.reconnect {
+		// The registry is built here and not in hostagent for the same
+		// reason the agent is mounted here at all: deciding that a shell
+		// may outlive the window that opened it is the command's business.
+		// A library that turned that on by existing would turn it on for
+		// chaosrack, which imports the agent and never asked.
+		agent.Sessions = hostagent.NewRegistry(hostagent.RegistryConfig{
+			IdleTimeout: opt.reconnectIdle,
+		})
 	}
 	cfg := hostConfig{Token: token}
 	if opt.auth {
@@ -150,7 +164,7 @@ func mountHostAgent(mux *http.ServeMux, ln net.Listener, opt hostOptions) (hostC
 		mux.Handle(hostproto.FSPath, agent.FSHandler(hostagent.FSConfig{Root: opt.fsRoot}))
 		cfg.FS = true
 	}
-	return cfg, nil
+	return cfg, agent.Sessions, nil
 }
 
 // hostOptions is what the flags asked for.
@@ -160,6 +174,12 @@ type hostOptions struct {
 	shell     string
 	fsRoot    string
 	auth      bool
+
+	// reconnect and reconnectIdle turn on named sessions that survive their
+	// window, and how long a detached one lives. See hostagent's session.go,
+	// where the reasoning about what that costs is written down.
+	reconnect     bool
+	reconnectIdle time.Duration
 }
 
 // warnAboutHostAccess says what was just turned on.
@@ -177,9 +197,53 @@ func warnAboutHostAccess(opt hostOptions) {
 		}
 		fmt.Printf("desk: --fs is ON: this page can read and write %s.\n", scope)
 	}
+	if opt.reconnect && opt.wantShell {
+		// Said out loud because it removes the simplest revocation there
+		// was. Until now, closing the window ended the shell; now a named
+		// one keeps running with nothing on screen to remind anybody it is
+		// there, and what ends it is this process stopping or the idle
+		// timeout expiring.
+		idle := "1h"
+		switch {
+		case opt.reconnectIdle < 0:
+			idle = "never"
+		case opt.reconnectIdle > 0:
+			idle = opt.reconnectIdle.String()
+		}
+		fmt.Printf("desk: --reconnect is ON: a named host shell keeps running after its window closes.\n")
+		fmt.Printf("desk:   detached shells are reaped after %s of nobody attaching; stopping the server kills them all.\n", idle)
+	}
 	fmt.Printf("desk:   guarded by a per-run token and an Origin check; stop the server to revoke both.\n")
 	if !opt.auth {
 		fmt.Printf("desk:   the token is in the served page. On a machine with other users on it,\n")
 		fmt.Printf("desk:   add --auth so it is printed here instead — they can read the page.\n")
 	}
+}
+
+// reapSessionsOnSignal kills every detached shell when the server is stopped.
+//
+// WITHOUT THIS, "stop the server to revoke access" would be a half-truth for
+// --reconnect, and it is the sentence the whole feature's safety rests on.
+// Exiting closes the pty masters, which sends SIGHUP to each shell — and a
+// shell that trapped HUP ignores it, gets reparented to init, and carries on
+// running as you with nothing left that knows it exists. That is exactly the
+// case hostagent.Session.Close exists for, and it can only do its job while
+// there is still a process around to do it.
+//
+// Only for the reconnect path. Without a registry, every shell has a socket
+// and dies when the process holding it does, and installing a handler would
+// only change how Ctrl-C looks.
+func reapSessionsOnSignal(reg *hostagent.Registry) {
+	c := make(chan os.Signal, 1)
+	signal.Notify(c, os.Interrupt, syscall.SIGTERM)
+	go func() {
+		<-c
+		fmt.Printf("\ndesk: stopping; ending detached shells.\n")
+		reg.Close()
+		// Explicitly, rather than returning and letting the server notice:
+		// nothing else is watching for this, and a second Ctrl-C from
+		// somebody who thinks it did not work would arrive while the kills
+		// are still in flight.
+		os.Exit(1)
+	}()
 }

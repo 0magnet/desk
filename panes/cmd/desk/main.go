@@ -57,11 +57,25 @@ func main() {
 	desk.Register(desk.App{
 		Name:   "host",
 		Title:  "host shell",
-		Help:   "a real shell on this machine (needs desk-serve --shell)",
+		Help:   "a real shell on this machine (needs desk-serve --shell; `host NAME` to reconnect)",
 		Width:  760,
 		Height: 460,
-		Open: func([]string) (desk.Pane, error) {
-			return hostterm.New(), nil
+		Open: func(args []string) (desk.Pane, error) {
+			// An argument NAMES the session, which is what makes it
+			// survive the window: `host build` twice is the same shell
+			// the second time, with what it printed in between replayed
+			// into it. Naming is the user's job rather than the pane's
+			// because only they know whether a new window is meant to be
+			// the old one — see hostterm.NewSession.
+			//
+			// Needs desk-serve --reconnect on the other end. Without it
+			// the name is ignored and this is an ordinary host shell,
+			// which is why there is nothing to check here.
+			name := ""
+			if len(args) > 0 {
+				name = args[0]
+			}
+			return hostterm.NewSession(name), nil
 		},
 	})
 	desk.Register(desk.App{

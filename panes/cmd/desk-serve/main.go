@@ -27,13 +27,15 @@ import (
 )
 
 var (
-	addr     string
-	open     bool
-	shell    bool
-	shcmd    string
-	hostFS   bool
-	fsRoot   string
-	hostAuth bool
+	addr          string
+	open          bool
+	shell         bool
+	shcmd         string
+	hostFS        bool
+	fsRoot        string
+	hostAuth      bool
+	reconnect     bool
+	reconnectIdle time.Duration
 )
 
 func init() {
@@ -44,6 +46,8 @@ func init() {
 	RootCmd.Flags().BoolVarP(&hostFS, "fs", "f", false, "let the page read and write this machine's files")
 	RootCmd.Flags().StringVar(&fsRoot, "fs-root", "", "confine --fs to this subtree (default: the whole filesystem)")
 	RootCmd.Flags().BoolVar(&hostAuth, "auth", false, "print the token instead of putting it in the page, and ask for it (for shared machines)")
+	RootCmd.Flags().BoolVar(&reconnect, "reconnect", false, "let a named host shell outlive its window (open it in the desk as: host NAME)")
+	RootCmd.Flags().DurationVar(&reconnectIdle, "reconnect-idle", 0, "reap a detached shell after this long (default 1h; negative never)")
 	var helpflag bool
 	RootCmd.SetUsageTemplate(help)
 	RootCmd.PersistentFlags().BoolVarP(&helpflag, "help", "h", false, "help for "+RootCmd.Use)
@@ -80,7 +84,7 @@ var RootCmd = &cobra.Command{
 		mux := http.NewServeMux()
 		page := noCache(http.FileServerFS(desk.Assets()))
 
-		opt := hostOptions{wantShell: shell, wantFS: hostFS, shell: shcmd, fsRoot: fsRoot, auth: hostAuth}
+		opt := hostOptions{wantShell: shell, wantFS: hostFS, shell: shcmd, fsRoot: fsRoot, auth: hostAuth, reconnect: reconnect, reconnectIdle: reconnectIdle}
 		if opt.wantShell || opt.wantFS {
 			// Refusing rather than warning. The Origin check makes a
 			// non-loopback listener less bad than it sounds, but "a shell,
@@ -89,12 +93,15 @@ var RootCmd = &cobra.Command{
 			if a, ok := ln.Addr().(*net.TCPAddr); !ok || !a.IP.IsLoopback() {
 				log.Fatalf("desk: host access needs a loopback address; %s is reachable from elsewhere", ln.Addr())
 			}
-			cfg, err := mountHostAgent(mux, ln, opt)
+			cfg, sessions, err := mountHostAgent(mux, ln, opt)
 			if err != nil {
 				log.Fatalf("desk: %v", err)
 			}
 			if page, err = injectHostConfig(desk.Assets(), page, cfg); err != nil {
 				log.Fatalf("desk: %v", err)
+			}
+			if sessions != nil {
+				reapSessionsOnSignal(sessions)
 			}
 			warnAboutHostAccess(opt)
 		}
