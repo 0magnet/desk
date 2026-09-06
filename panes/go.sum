@@ -16,6 +16,8 @@ github.com/0magnet/websh v0.0.0-20260905172043-212a70985991 h1:zFAFaY4hVfmkVYnay
 github.com/0magnet/websh v0.0.0-20260905172043-212a70985991/go.mod h1:zM6emVi15GzCgqt30dRv3cWxBVgt3A+W7Fwx3GZPcKI=
 github.com/0magnet/websh v0.0.0-20260905235829-43c363695efe h1:9ZUiaampOdiDq2ToRD7Jg9IE1VeXMO5Xyrcs+39lBtM=
 github.com/0magnet/websh v0.0.0-20260905235829-43c363695efe/go.mod h1:zM6emVi15GzCgqt30dRv3cWxBVgt3A+W7Fwx3GZPcKI=
+github.com/0magnet/websh v0.0.0-20260906001908-5f8df8dbc4c5 h1:DIvQONJEuw+GCHWMLRha7MungXDNMWR8TNhkNYVvqNA=
+github.com/0magnet/websh v0.0.0-20260906001908-5f8df8dbc4c5/go.mod h1:zM6emVi15GzCgqt30dRv3cWxBVgt3A+W7Fwx3GZPcKI=
 github.com/0magnet/winbox-go v0.0.0-20260821223041-b2d40b5b492d h1:OCwcb3YU0Xe+VmHZmlhQ6DeG7FdUZVKJM0PO3ILpVzw=
 github.com/0magnet/winbox-go v0.0.0-20260821223041-b2d40b5b492d/go.mod h1:19+/rRQWd/tc9/8CFcUr6C+3AipeZmHyyda2tVombe4=
 github.com/0magnet/xterm-go v0.0.0-20260821223040-7fc35994fbca h1:IGEbHl33iwrKDX0wTpgZs0Q2C4W95Y8K/gXl6QWk5zk=
