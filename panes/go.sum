@@ -12,10 +12,16 @@ github.com/0magnet/u-root v0.16.1-0.20260814161052-156e0b67262b h1:1p4E2ok/rmNJU
 github.com/0magnet/u-root v0.16.1-0.20260814161052-156e0b67262b/go.mod h1:fId14v+rNp1A0ZKHJPZZyiu9dfgWKEs7nbyvKrku3bo=
 github.com/0magnet/websh v0.0.0-20260821231944-8cefc6a09852 h1:qa8UfpyN+0KGOlOnYxAkdyeYwGbx815utXTHfOIIPek=
 github.com/0magnet/websh v0.0.0-20260821231944-8cefc6a09852/go.mod h1:kXk0spwm5jCTPtJkPneg4h4JYyvvCnPLBpditv7zEBQ=
+github.com/0magnet/websh v0.0.0-20260905172043-212a70985991 h1:zFAFaY4hVfmkVYnaysb1vUjMfCz6NYyudXTAVB6H3KY=
+github.com/0magnet/websh v0.0.0-20260905172043-212a70985991/go.mod h1:zM6emVi15GzCgqt30dRv3cWxBVgt3A+W7Fwx3GZPcKI=
+github.com/0magnet/websh v0.0.0-20260905235829-43c363695efe h1:9ZUiaampOdiDq2ToRD7Jg9IE1VeXMO5Xyrcs+39lBtM=
+github.com/0magnet/websh v0.0.0-20260905235829-43c363695efe/go.mod h1:zM6emVi15GzCgqt30dRv3cWxBVgt3A+W7Fwx3GZPcKI=
 github.com/0magnet/winbox-go v0.0.0-20260821223041-b2d40b5b492d h1:OCwcb3YU0Xe+VmHZmlhQ6DeG7FdUZVKJM0PO3ILpVzw=
 github.com/0magnet/winbox-go v0.0.0-20260821223041-b2d40b5b492d/go.mod h1:19+/rRQWd/tc9/8CFcUr6C+3AipeZmHyyda2tVombe4=
 github.com/0magnet/xterm-go v0.0.0-20260821223040-7fc35994fbca h1:IGEbHl33iwrKDX0wTpgZs0Q2C4W95Y8K/gXl6QWk5zk=
 github.com/0magnet/xterm-go v0.0.0-20260821223040-7fc35994fbca/go.mod h1:W6c6ofSTsxXuQEr1rSZ3qmfOj5a3LGB3uLQBL0/TiKc=
+github.com/0magnet/xterm-go v0.0.0-20260903022452-f823b747bcfe h1:gE0jlMzzlZio5Rakb0HJzHosodgpgv+EaCk7hDw2ve4=
+github.com/0magnet/xterm-go v0.0.0-20260903022452-f823b747bcfe/go.mod h1:W6c6ofSTsxXuQEr1rSZ3qmfOj5a3LGB3uLQBL0/TiKc=
 github.com/benhoyt/goawk v1.31.0 h1:TSdLys1rAWvmb3befdmLYpaHZbTrYtS+JkBWRcNsMNM=
 github.com/benhoyt/goawk v1.31.0/go.mod h1:jXTQxBxtQ0VsjFqc8dw7tIJj3SDzQN8kcdMq7r83/ZA=
 github.com/cpuguy83/go-md2man/v2 v2.0.1/go.mod h1:tgQtvFlXSQOSOSIRvRPT7W67SCa46tRHOmNcaadrF8o=

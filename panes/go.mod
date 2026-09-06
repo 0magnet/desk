@@ -15,8 +15,8 @@ require (
 	github.com/0magnet/coloredcobra v1.0.2
 	github.com/0magnet/desk v0.0.0-20260821233537-011049f1c514
 	github.com/0magnet/sh/v3 v3.13.2-0.20260818190530-13d0024da85c
-	github.com/0magnet/websh v0.0.0-20260821231944-8cefc6a09852
-	github.com/0magnet/xterm-go v0.0.0-20260821223040-7fc35994fbca
+	github.com/0magnet/websh v0.0.0-20260905235829-43c363695efe
+	github.com/0magnet/xterm-go v0.0.0-20260903022452-f823b747bcfe
 	github.com/creack/pty v1.1.24
 	github.com/spf13/cobra v1.10.2
 	golang.org/x/net v0.58.0

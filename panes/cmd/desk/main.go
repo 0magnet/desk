@@ -94,6 +94,7 @@ func main() {
 	})
 	viewer.Register(term.FS())
 	registerLauncherApplets()
+	registerHostApplet()
 
 	// Compositing is opt-in and reachable, rather than opt-in and unreachable.
 	// It draws every window that is a canvas into one WebGL layer, and a
