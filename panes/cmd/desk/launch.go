@@ -6,6 +6,7 @@ import (
 	"context"
 	"fmt"
 	"strings"
+	"time"
 
 	"github.com/0magnet/sh/v3/interp"
 	"github.com/0magnet/websh/shell"
@@ -103,6 +104,13 @@ func registerHostApplet() {
 				defer s.RawMode(false)
 			}
 
+			// A newline BEFORE the remote's first byte. Raw mode is already on,
+			// so websh did not echo the Return that ran this — the cursor is
+			// still sitting after "host demo" and the remote's first output
+			// would start on that line, on top of the command that asked for
+			// it. A shell echoes the newline for exactly this reason.
+			fmt.Fprint(hc.Stdout, "\r\n") //nolint:errcheck
+
 			att, err := hostterm.Attach(term, name)
 			if err != nil {
 				fmt.Fprintf(hc.Stderr, "host: %v\n", err) //nolint:errcheck
@@ -132,6 +140,13 @@ func registerHostApplet() {
 			// back.
 			select {
 			case <-att.Done():
+				// Let the last of the pty's output land before taking the
+				// terminal back. The socket's close and the messages ahead of
+				// it are separate JS tasks, so returning the instant Done
+				// fires means websh draws its prompt and the remote's parting
+				// "exit" is then written over it — which is what the two
+				// shells fighting for one cursor looks like.
+				time.Sleep(120 * time.Millisecond)
 			case <-ctx.Done():
 			}
 
@@ -139,6 +154,11 @@ func registerHostApplet() {
 			// a scroll region set, and the prompt about to be printed would
 			// inherit both. Reset rather than clear: clearing would throw away
 			// the session the user just had, which is the thing worth keeping.
+			// Hand the terminal back in a known state. A remote full-screen
+			// program may have left the cursor hidden or a scroll region set,
+			// and the prompt about to be printed would inherit both. The
+			// trailing newline is what puts that prompt on a line of its own
+			// rather than at whatever column the remote stopped in.
 			fmt.Fprint(hc.Stdout, "\x1b[?25h\x1b[r\x1b[0m\r\n") //nolint:errcheck
 			return 0
 		})
