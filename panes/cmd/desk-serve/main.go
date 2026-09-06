@@ -102,6 +102,13 @@ var RootCmd = &cobra.Command{
 			}
 			if sessions != nil {
 				reapSessionsOnSignal(sessions)
+				// A second handler for a second signal, installed
+				// alongside rather than folded into the first: one of
+				// these ends the process and the other answers a
+				// question about it, and a single handler switching on
+				// which signal arrived would put a listing one typo away
+				// from an os.Exit.
+				printSessionsOnSignal(sessions)
 			}
 			warnAboutHostAccess(opt)
 		}

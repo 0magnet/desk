@@ -12,6 +12,7 @@ import (
 	"os"
 	"os/signal"
 	"path"
+	"sync"
 	"syscall"
 	"time"
 
@@ -148,6 +149,7 @@ func mountHostAgent(mux *http.ServeMux, ln net.Listener, opt hostOptions) (hostC
 		// chaosrack, which imports the agent and never asked.
 		agent.Sessions = hostagent.NewRegistry(hostagent.RegistryConfig{
 			IdleTimeout: opt.reconnectIdle,
+			Notify:      logSessionEvent,
 		})
 	}
 	cfg := hostConfig{Token: token}
@@ -212,12 +214,59 @@ func warnAboutHostAccess(opt hostOptions) {
 		}
 		fmt.Printf("desk: --reconnect is ON: a named host shell keeps running after its window closes.\n")
 		fmt.Printf("desk:   detached shells are reaped after %s of nobody attaching; stopping the server kills them all.\n", idle)
+		// Said here, next to the warning about what --reconnect costs,
+		// because that is the moment somebody is reading about invisible
+		// shells and the useful next sentence is how to see them. The pid
+		// is printed rather than left to be looked up: a person who has to
+		// run pgrep first has been given a footnote, not a tool.
+		if listSessionsSignal != "" {
+			fmt.Printf("desk:   to list what is running, on this terminal: kill -%s %d\n", listSessionsSignal, os.Getpid())
+		}
 	}
 	fmt.Printf("desk:   guarded by a per-run token and an Origin check; stop the server to revoke both.\n")
 	if !opt.auth {
 		fmt.Printf("desk:   the token is in the served page. On a machine with other users on it,\n")
 		fmt.Printf("desk:   add --auth so it is printed here instead — they can read the page.\n")
 	}
+}
+
+// hostPrint serializes the two things that report sessions to this terminal.
+//
+// Not for the usual reason. A single Fprintf to os.Stdout is one write(2) and
+// whole lines do not interleave, so the event log needs no lock at all; the
+// listing does, because tabwriter emits a table as many writes and an event
+// line landing in the middle of one turns the columns into rubbish at exactly
+// the moment somebody is trying to read them. The lock is held for the
+// printing and never while the registry is being asked anything.
+var hostPrint sync.Mutex
+
+// logSessionEvent prints one line per change in a session's life.
+//
+// # Why this exists as well as the signal, rather than instead of it
+//
+// They answer different questions and neither covers the other. The signal
+// answers "what is running right now", which is what you ask when you are
+// about to close the laptop. This answers "what happened", which is what you
+// ask when the machine has been warm for an hour and you want to know why —
+// and it is the only one of the two that can tell you about a session that was
+// created and reaped between two signals, because nothing else ever saw it.
+//
+// Unconditional rather than behind a --reconnect-log flag. The volume is one
+// line per window opened, closed or reaped, on a stdout that otherwise prints
+// four lines at startup and nothing else for the rest of the day; a flag to
+// suppress that would be a flag whose main effect is that somebody turns it on
+// and stops seeing the shells they left running, which is the failure this
+// whole file is about. If it ever does become noise, the fix is to make it
+// quieter, not optional.
+//
+// Stdout and not the log package: everything else the command says about host
+// access goes to stdout with a desk: prefix, and a report that arrives in a
+// different stream with a different format reads as a malfunction rather than
+// as the same program still talking.
+func logSessionEvent(ev hostagent.SessionEvent, s hostagent.SessionInfo) {
+	hostPrint.Lock()
+	defer hostPrint.Unlock()
+	hostagent.PrintEvent(os.Stdout, "desk: ", ev, s)
 }
 
 // reapSessionsOnSignal kills every detached shell when the server is stopped.

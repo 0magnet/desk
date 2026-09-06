@@ -165,6 +165,25 @@ attachment is a socket that died without saying so. Detached shells are reaped
 after an hour of nobody attaching (`--reconnect-idle`, negative to never), and
 stopping the server kills them all — including one that trapped `SIGHUP`.
 
+A shell with no window on it is invisible, so the server says what it has, on
+the terminal it was started in and nowhere else. Every session that starts, is
+left running or ends prints a line there, and `kill -USR1 <pid>` prints the
+whole listing — name, pid, attached or not, how long it has been that way, when
+it will be reaped, how much replay it is holding:
+
+```
+desk: 2 host shell(s), 1 of them detached:
+desk: NAME      PID      STATE     FOR  REAPED IN  BUFFER
+desk: build     3099788  detached  13s  59m47s     163 B
+desk: watching  3100073  attached  3s   -          172 B
+```
+
+The pid is what makes `ps` and `kill` the rest of the interface: killing a
+shell closes its pty, and the session notices and unregisters itself. Note that
+an interactive shell ignores a plain `SIGTERM`, so it is `kill -HUP` or
+`kill -9`. There is no *endpoint* that lists sessions and deliberately never
+will be — see below.
+
 `--fs` is the one that does more than it looks like. websh's shell and the file
 manager both work against `afero.Fs`, an **interface**, and websh takes any
 implementation — so a single host-backed `afero.Fs` makes the file manager list
@@ -233,7 +252,10 @@ machine, and any page you visit may try to reach localhost. So:
   is not merely refused under another but unaddressable. A name that resolves
   to nothing starts a session rather than reporting one, so the endpoint is not
   an oracle for what exists; the number of live shells is capped; and stopping
-  the server still kills every one of them.
+  the server still kills every one of them. What exists *is* reported to the
+  process's own stdout, on `SIGUSR1` — a channel a page cannot address and that
+  only whoever started the server can use, which is the whole difference
+  between telling the operator and answering the wire.
 
 The Origin check is the load-bearing one and the token is honestly the weaker
 guard: a browser sets `Origin` itself and script cannot forge it, whereas a
