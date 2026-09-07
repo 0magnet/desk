@@ -1,3 +1,3 @@
-# github.com/0magnet/winbox-go v0.0.0-20260905172045-cfee586c8360
+# github.com/0magnet/winbox-go v0.0.0-20260907164818-1573f12aafdd
 ## explicit; go 1.24
 github.com/0magnet/winbox-go
