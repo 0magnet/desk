@@ -135,7 +135,7 @@ func registerHostApplet() {
 				}
 			}()
 
-			// Either the remote shell exited, or the session was cancelled
+			// Either the remote shell exited, or the session was canceled
 			// from outside. Both mean the same thing here: give the terminal
 			// back.
 			select {
