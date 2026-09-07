@@ -11,12 +11,12 @@ go 1.26
 
 require (
 	github.com/0magnet/afero v1.15.1-0.20260816202415-9f9d46a34dcd
-	github.com/0magnet/calvin v0.0.0-20260905171945-6d046e156c9b
+	github.com/0magnet/calvin v0.0.0-20260907164811-60c88e364a88
 	github.com/0magnet/coloredcobra v1.0.3
-	github.com/0magnet/desk v0.0.0-20260906155330-9925d12693bb
+	github.com/0magnet/desk v0.0.0-20260907202244-40230f775b1c
 	github.com/0magnet/sh/v3 v3.13.2-0.20260818190530-13d0024da85c
-	github.com/0magnet/websh v0.0.0-20260906001908-5f8df8dbc4c5
-	github.com/0magnet/xterm-go v0.0.0-20260905172047-f0008e1479ee
+	github.com/0magnet/websh v0.0.0-20260907164820-23f622ba4adb
+	github.com/0magnet/xterm-go v0.0.0-20260907164817-c5d24e1daacc
 	github.com/creack/pty v1.1.24
 	github.com/spf13/cobra v1.10.2
 	golang.org/x/net v0.58.0
@@ -24,7 +24,7 @@ require (
 
 require (
 	github.com/0magnet/u-root v0.16.1-0.20260814161052-156e0b67262b // indirect
-	github.com/0magnet/winbox-go v0.0.0-20260905172045-cfee586c8360 // indirect
+	github.com/0magnet/winbox-go v0.0.0-20260907164818-1573f12aafdd // indirect
 	github.com/benhoyt/goawk v1.31.0 // indirect
 	github.com/dustin/go-humanize v1.0.1 // indirect
 	github.com/fatih/color v1.19.0 // indirect
