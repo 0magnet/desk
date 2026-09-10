@@ -16,7 +16,7 @@ require (
 	github.com/0magnet/desk v0.0.0-20260907202244-40230f775b1c
 	github.com/0magnet/sh/v3 v3.13.2-0.20260818190530-13d0024da85c
 	github.com/0magnet/websh v0.0.0-20260907164820-23f622ba4adb
-	github.com/0magnet/xterm-go v0.0.0-20260907164817-c5d24e1daacc
+	github.com/0magnet/xterm-go v0.0.0-20260909230905-494f3085d6ed
 	github.com/creack/pty v1.1.24
 	github.com/spf13/cobra v1.10.2
 	golang.org/x/net v0.58.0
