@@ -22,7 +22,7 @@ import (
 
 	"github.com/0magnet/calvin"
 	cc "github.com/0magnet/coloredcobra"
-	"github.com/0magnet/desk"
+	wasmgo "github.com/0magnet/desk/docs/go"
 	"github.com/spf13/cobra"
 )
 
@@ -82,7 +82,7 @@ var RootCmd = &cobra.Command{
 		}
 
 		mux := http.NewServeMux()
-		page := noCache(http.FileServerFS(desk.Assets()))
+		page := noCache(http.FileServerFS(wasmgo.FS()))
 
 		opt := hostOptions{wantShell: shell, wantFS: hostFS, shell: shcmd, fsRoot: fsRoot, auth: hostAuth, reconnect: reconnect, reconnectIdle: reconnectIdle}
 		if opt.wantShell || opt.wantFS {
@@ -97,7 +97,7 @@ var RootCmd = &cobra.Command{
 			if err != nil {
 				log.Fatalf("desk: %v", err)
 			}
-			if page, err = injectHostConfig(desk.Assets(), page, cfg); err != nil {
+			if page, err = injectHostConfig(wasmgo.FS(), page, cfg); err != nil {
 				log.Fatalf("desk: %v", err)
 			}
 			if sessions != nil {
