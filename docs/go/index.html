@@ -5,6 +5,22 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Crect x='1' y='2' width='10' height='8' rx='1' fill='none' stroke='%238fc6f0' stroke-width='1.4'/%3E%3Crect x='5' y='6' width='10' height='8' rx='1' fill='none' stroke='%23e8825f' stroke-width='1.4'/%3E%3C/svg%3E">
 <title>desk — windows over panes, in WebAssembly</title>
+<!-- seo:begin -->
+<meta name="description" content="A desktop environment that runs in a browser tab: draggable windows, a taskbar and an applications menu, drawn by Go compiled to WebAssembly. Windows over panes.">
+<meta name="author" content="0magnet">
+<link rel="canonical" href="https://desk.magnetosphere.net/">
+<meta property="og:type" content="website">
+<meta property="og:site_name" content="magnetosphere">
+<meta property="og:title" content="desk — a desktop shell for the browser, in WebAssembly">
+<meta property="og:description" content="A desktop environment that runs in a browser tab: draggable windows, a taskbar and an applications menu, drawn by Go compiled to WebAssembly. Windows over panes.">
+<meta property="og:url" content="https://desk.magnetosphere.net/">
+<meta property="og:image" content="https://desk.magnetosphere.net/desk-demo.png">
+<meta property="og:image:alt" content="A command in the shell opening a viewer window, both stacked in the taskbar">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:title" content="desk — a desktop shell for the browser, in WebAssembly">
+<meta name="twitter:description" content="A desktop environment that runs in a browser tab: draggable windows, a taskbar and an applications menu, drawn by Go compiled to WebAssembly. Windows over panes.">
+<meta name="twitter:image" content="https://desk.magnetosphere.net/desk-demo.png">
+<!-- seo:end -->
 <style>
   html, body { margin: 0; height: 100%; overflow: hidden;
                background: #10131a; color: #d3d7cf; }
@@ -20,6 +36,14 @@
 </style>
 </head>
 <body>
+<!-- seo:begin -->
+<div style="position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap;border:0;">
+<h1>desk — windows over panes, in WebAssembly</h1>
+<p>A small desktop shell for the browser, written in Go and compiled to WebAssembly. winbox-go supplies the window manager — drag, resize, minimize, maximize, modals — websh supplies a bash-like shell, and a pane is anything that renders into a DOM element.</p>
+<p>Open a window from the applications menu or from the shell itself, stack windows in the taskbar, and run several programs side by side. A web desktop with no server behind it: the whole environment is wasm running in the page.</p>
+<p>Source code: <a href="https://github.com/0magnet/desk">github.com/0magnet/desk</a>. More Go and WebAssembly projects: <a href="https://magnetosphere.net/software">magnetosphere.net/software</a>.</p>
+</div>
+<!-- seo:end -->
 <div id="desktop"><div id="boot">loading…</div></div>
 <script src="wasm_exec.js"></script>
 <script>
