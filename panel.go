@@ -394,8 +394,14 @@ func (p *Panel) SetStartIcon(url string) {
 		dom.Attr("src", url), dom.Attr("alt", "Applications")))
 }
 
-// OpenMenu opens the application menu, as a click on the start button does.
-func (p *Panel) OpenMenu() { p.setOpen(true) }
+// OpenMenu shows the application menu for a guide to point at. Unlike a click
+// on the start button it raises no click shield and takes no focus, so the
+// window the guide runs in stays usable. Any click on the desk closes it.
+func (p *Panel) OpenMenu() {
+	p.setOpen(true)
+	p.hideMenuShield()
+	p.search.Call("blur")
+}
 
 // CloseMenu closes the application menu.
 func (p *Panel) CloseMenu() { p.setOpen(false) }
