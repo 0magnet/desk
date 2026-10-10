@@ -6,6 +6,8 @@ github.com/0magnet/coloredcobra v1.0.4-0.20260908180055-b9d8b508df51 h1:lZFYbwsN
 github.com/0magnet/coloredcobra v1.0.4-0.20260908180055-b9d8b508df51/go.mod h1:OSCjGKvxf/VotZXKLYjhimX546ojNMdX8s2+9r3gCQk=
 github.com/0magnet/desk v0.0.1-0.20261004014112-6745b410dec7 h1:JVUwd+fLH5SqqZ0u+ijhOl4fFhDp8ETRETGgew7zaOA=
 github.com/0magnet/desk v0.0.1-0.20261004014112-6745b410dec7/go.mod h1:E8JYepaH9Bi5L5e0+GhJAYQr8UeMziBqTPYhvPqNZwI=
+github.com/0magnet/seat v0.0.0-20261010020625-53f992704517 h1:CoOJ5rifai+m2idf/Bxe6YHEQaooJ0UYmAbFLYyxfec=
+github.com/0magnet/seat v0.0.0-20261010020625-53f992704517/go.mod h1:2qiBD+X0CtKF8jH4bFzncggipDQlsIRzNbtWAYS/01Q=
 github.com/0magnet/sh/v3 v3.13.2-0.20261004194540-aa2d6e4a31a5 h1:phE5/F4rBgh+VE51tU7Y6ZusHkQnECwIBBZHQJf7S5M=
 github.com/0magnet/sh/v3 v3.13.2-0.20261004194540-aa2d6e4a31a5/go.mod h1:ngQcnC5AqtrdAe3n1WaXvxXU63Jex0A7zKpJ4xQMfmQ=
 github.com/0magnet/u-root v0.16.1-0.20261003214924-44e47b732754 h1:wK2MncQOnEea7yqiOHvv3oD89sc+YC1dAw4zw1o48mQ=

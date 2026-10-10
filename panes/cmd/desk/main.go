@@ -13,6 +13,7 @@ import (
 	"github.com/0magnet/desk/panes/hostterm"
 	"github.com/0magnet/desk/panes/term"
 	"github.com/0magnet/desk/panes/viewer"
+	"github.com/0magnet/seat"
 )
 
 const greeting = "" +
@@ -119,5 +120,21 @@ func main() {
 	if _, err := desk.Launch("term"); err != nil {
 		js.Global().Get("console").Call("error", err.Error())
 	}
+
+	// The desktop is one screen of the page, as a machine's graphical session
+	// is one of its consoles: Ctrl+Alt+2 and 3 are shells that fill the screen,
+	// on the same filesystem, and Ctrl+Alt+1 is back to the desktop
+	// (0magnet/seat). A pane is a screen as it is.
+	s := seat.New(seat.Options{})
+	s.AddPage("desktop", nil)
+	for _, n := range []string{"2", "3"} {
+		s.Add("console "+n, term.New(consoleGreeting(n), "desk"))
+	}
+	_ = s.Show("desktop") //nolint:errcheck // a page screen always shows
 	select {}
+}
+
+// consoleGreeting is what a console screen says first.
+func consoleGreeting(n string) string {
+	return "\x1b[1;36mdesk\x1b[0m · console " + n + " · \x1b[2mctrl+alt+1 desktop · ctrl+alt+2, 3 consoles\x1b[0m\r\n\r\n"
 }
