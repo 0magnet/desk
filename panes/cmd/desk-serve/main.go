@@ -20,8 +20,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/0magnet/calvin"
-	cc "github.com/0magnet/coloredcobra"
+	"github.com/0magnet/calvin/clihelp"
 	wasmgo "github.com/0magnet/desk/docs/go"
 	"github.com/spf13/cobra"
 )
@@ -48,18 +47,14 @@ func init() {
 	RootCmd.Flags().BoolVar(&hostAuth, "auth", false, "print the token instead of putting it in the page, and ask for it (for shared machines)")
 	RootCmd.Flags().BoolVar(&reconnect, "reconnect", false, "let a named host shell outlive its window (open it in the desk as: host NAME)")
 	RootCmd.Flags().DurationVar(&reconnectIdle, "reconnect-idle", 0, "reap a detached shell after this long (default 1h; negative never)")
-	var helpflag bool
-	RootCmd.SetUsageTemplate(help)
-	RootCmd.PersistentFlags().BoolVarP(&helpflag, "help", "h", false, "help for "+RootCmd.Use)
 	RootCmd.SetHelpCommand(&cobra.Command{Hidden: true})
-	RootCmd.PersistentFlags().MarkHidden("help") //nolint
 }
 
 // RootCmd is the root command
 var RootCmd = &cobra.Command{
 	Use:                   "desk-serve",
 	Short:                 "serve the desk web view",
-	Long:                  calvin.AsciiFont("desk-serve") + "\nserve the desk web view",
+	Long:                  "serve the desk web view",
 	SilenceErrors:         true,
 	SilenceUsage:          true,
 	DisableSuggestions:    true,
@@ -124,18 +119,7 @@ var RootCmd = &cobra.Command{
 }
 
 func main() {
-	cc.Init(&cc.Config{
-		RootCmd:         RootCmd,
-		Headings:        cc.HiBlue + cc.Bold,
-		Commands:        cc.HiBlue + cc.Bold,
-		CmdShortDescr:   cc.HiBlue,
-		Example:         cc.HiBlue + cc.Italic,
-		ExecName:        cc.HiBlue + cc.Bold,
-		Flags:           cc.HiBlue + cc.Bold,
-		FlagsDescr:      cc.HiBlue,
-		NoExtraNewlines: true,
-		NoBottomNewline: true,
-	})
+	clihelp.Init(RootCmd, "desk-serve")
 	if err := RootCmd.Execute(); err != nil {
 		log.Fatal("Failed to execute command: ", err)
 	}
@@ -168,12 +152,3 @@ func browse(url string) {
 		log.Printf("desk: could not open a browser (%v); visit %s", err, url)
 	}
 }
-
-const help = "{{if .HasAvailableSubCommands}}{{end}} {{if gt (len .Aliases) 0}}\r\n\r\n" +
-	"{{.NameAndAliases}}{{end}}{{if .HasAvailableSubCommands}}" +
-	"Available Commands:{{range .Commands}}  {{if and (ne .Name \"completion\") .IsAvailableCommand}}\r\n  " +
-	"{{rpad .Name .NamePadding }} {{.Short}}{{end}}{{end}}{{end}}{{if .HasAvailableLocalFlags}}\r\n\r\n" +
-	"Flags:\r\n" +
-	"{{.LocalFlags.FlagUsages | trimTrailingWhitespaces}}{{end}}{{if .HasAvailableInheritedFlags}}\r\n\r\n" +
-	"Global Flags:\r\n" +
-	"{{.InheritedFlags.FlagUsages | trimTrailingWhitespaces}}{{end}}\r\n\r\n"
