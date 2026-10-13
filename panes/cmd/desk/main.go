@@ -16,12 +16,6 @@ import (
 	"github.com/0magnet/seat"
 )
 
-const greeting = "" +
-	"\x1b[1;35mdesk\x1b[0m — windows over panes, in WebAssembly\r\n" +
-	"\x1b[2mthe shell is \x1b[0m\x1b[1mwebsh\x1b[0m\x1b[2m, the windows are \x1b[0m\x1b[1mwinbox-go\x1b[0m\r\n\r\n" +
-	"try: \x1b[1mecho hello > note.txt && view note.txt\x1b[0m\r\n" +
-	"     \x1b[1mopen files\x1b[0m  ·  \x1b[1mterm\x1b[0m  ·  or the menu, bottom left\r\n\r\n"
-
 func main() {
 	if el := js.Global().Get("document").Call("getElementById", "desktop"); el.Truthy() {
 		desk.SetRoot(el)
@@ -48,7 +42,7 @@ func main() {
 		Width:     760,
 		Height:    460,
 		Open: func([]string) (desk.Pane, error) {
-			return term.New(greeting, "desk"), nil
+			return term.New("", "desk"), nil
 		},
 	})
 	// Registered whether or not an agent is there to talk to. Hiding it when
@@ -128,13 +122,8 @@ func main() {
 	s := seat.New(seat.Options{})
 	s.AddPage("desktop", nil)
 	for _, n := range []string{"2", "3"} {
-		s.Add("console "+n, term.New(consoleGreeting(n), "desk"))
+		s.Add("console "+n, term.New("", "desk"))
 	}
 	_ = s.Show("desktop") //nolint:errcheck // a page screen always shows
 	select {}
-}
-
-// consoleGreeting is what a console screen says first.
-func consoleGreeting(n string) string {
-	return "\x1b[1;36mdesk\x1b[0m · console " + n + " · \x1b[2mctrl+alt+1 desktop · ctrl+alt+2, 3 consoles\x1b[0m\r\n\r\n"
 }
