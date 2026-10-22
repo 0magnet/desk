@@ -12,10 +12,10 @@ go 1.26.6
 require (
 	github.com/0magnet/afero v1.15.1-0.20261003211811-482680d00992
 	github.com/0magnet/calvin v0.0.1-0.20261013221715-da6581155df3
-	github.com/0magnet/desk v0.0.3-0.20261020181747-f1ce07a3d3e6
+	github.com/0magnet/desk v0.0.3-0.20261021102545-0270a128beef
 	github.com/0magnet/seat v0.0.0-20261013221028-e66b97ebca1a
 	github.com/0magnet/sh/v3 v3.13.2-0.20261004194540-aa2d6e4a31a5
-	github.com/0magnet/websh v0.0.1-0.20261021102026-4397eb6f191c
+	github.com/0magnet/websh v0.0.1-0.20261021200835-f11c55ad2f6e
 	github.com/0magnet/xterm-go v0.0.1-0.20261013223808-aa0a32cd702b
 	github.com/creack/pty v1.1.24
 	github.com/spf13/cobra v1.10.2
