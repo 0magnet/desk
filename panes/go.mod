@@ -12,14 +12,14 @@ go 1.26.6
 require (
 	github.com/0magnet/afero v1.15.1-0.20261003211811-482680d00992
 	github.com/0magnet/calvin v0.0.1-0.20261013221715-da6581155df3
-	github.com/0magnet/desk v0.0.3-0.20261026112122-ce92e0122bef
+	github.com/0magnet/desk v0.0.3-0.20261027104809-0f433998fc14
 	github.com/0magnet/seat v0.0.0-20261013221028-e66b97ebca1a
 	github.com/0magnet/sh/v3 v3.13.2-0.20261024150911-145e01c63128
-	github.com/0magnet/websh v0.0.1-0.20261024152844-289b63dd4b14
-	github.com/0magnet/xterm-go v0.0.1-0.20261013223808-aa0a32cd702b
+	github.com/0magnet/websh v0.0.1-0.20261028112929-8dd7f87d850a
+	github.com/0magnet/xterm-go v0.0.1-0.20261027203517-9d9bf96eff34
 	github.com/creack/pty v1.1.24
 	github.com/spf13/cobra v1.10.2
-	golang.org/x/net v0.61.0
+	golang.org/x/net v0.62.0
 )
 
 require (
