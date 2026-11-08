@@ -12,7 +12,7 @@ go 1.26.6
 require (
 	github.com/0magnet/afero v1.15.1-0.20261003211811-482680d00992
 	github.com/0magnet/calvin v0.0.1-0.20261106130306-95511d0b3e30
-	github.com/0magnet/desk v0.0.3-0.20261106131250-2e9fa7348e74
+	github.com/0magnet/desk v0.0.3-0.20261107115715-e5ac49895780
 	github.com/0magnet/seat v0.0.0-20261013221028-e66b97ebca1a
 	github.com/0magnet/sh/v3 v3.13.2-0.20261024150911-145e01c63128
 	github.com/0magnet/websh v0.0.1-0.20261106131606-1973f8bee280
