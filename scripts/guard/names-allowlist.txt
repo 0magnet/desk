@@ -1,0 +1,4 @@
+panes/files/files.go:Pane.open(isDir)
+panes/files/files.go:Pane.remove(isDir)
+panes/files/files.go:Pane.showMenu(isDir)
+panes/hostagent/handler.go:Config.Handler
